@@ -68,7 +68,9 @@
     },
     {
       "name": "Sync Automation",
-      "description": "Holds the identity used by the GitHub sync workflow. Only member allowed to bypass branch policies on mirrored repos."
+      "description": "Holds the identity used by the GitHub sync workflow. Only member allowed to bypass branch policies on mirrored repos.",
+      "members": ["PJAlva1@hotmail.com"],
+      "bypassPoliciesWhenPushing": true
     }
   ]
 }

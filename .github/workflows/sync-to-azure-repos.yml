@@ -45,6 +45,10 @@ jobs:
         if: steps.changed.outputs.any == 'true'
         shell: pwsh
         run: ./tooling/Test-RepoBoundaries.ps1
+      - name: Sync identity may bypass branch policies
+        if: steps.changed.outputs.any == 'true'
+        shell: pwsh
+        run: ./tooling/Grant-AdoSyncAccess.ps1
       - name: Mirror folders
         if: steps.changed.outputs.any == 'true'
         shell: pwsh

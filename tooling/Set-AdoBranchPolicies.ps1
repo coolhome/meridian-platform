@@ -17,8 +17,18 @@ Import-Module (Join-Path $PSScriptRoot 'lib' 'Meridian.Ado.psm1') -Force
 $m = Get-MeridianManifest -Path $ManifestPath
 $ctx = Connect-MeridianAdo -Manifest $m -Pat $Pat
 $profiles = Get-MeridianGovernanceFile -Manifest $m -Key branchPolicyProfiles
+$teams = Get-MeridianGovernanceFile -Manifest $m -Key teams
+$project = Get-AdoProject
 $tmp = Join-Path ([IO.Path]::GetTempPath()) "meridian-policies-$([guid]::NewGuid().ToString('n'))"
 New-Item -ItemType Directory -Path $tmp -Force | Out-Null
+
+# Groups allowed to push straight to policed branches (the mirror sync). Git Repositories namespace,
+# bit 128 = "Bypass policies when pushing"; without it every mirror push fails with TF402455.
+$gitNamespace = '2e9eb7ed-3c0a-47d4-87c1-0ffdd275fd87'
+$bypassGroups = @($teams.securityGroups | Where-Object { $_.PSObject.Properties['bypassPoliciesWhenPushing'] -and $_.bypassPoliciesWhenPushing } | ForEach-Object {
+    $id = Get-AdoIdentity -Name $_.name
+    if ($id) { $id } else { Write-MeridianWarn "group '$($_.name)' not found; bypass permission skipped" }
+})
 
 function Get-ExistingPolicies([string]$RepoId) {
     # `az repos policy list --repository-id` returns only repository-scoped policies (branch ones need
@@ -67,6 +77,11 @@ foreach ($repo in Get-MeridianMirroredRepos -Manifest $m -Folders $Folders) {
     if (-not $profile) { throw "profile '$($repo.policyProfile)' not defined" }
     $repoId = $adoRepo.id
     $existing = Get-ExistingPolicies $repoId
+
+    foreach ($g in $bypassGroups) {
+        $null = Invoke-AzCli devops security permission update --namespace-id $gitNamespace --subject $g.descriptor --token "repoV2/$($project.id)/$repoId" --allow-bit 128
+        Write-MeridianOk "$($g.providerDisplayName) may bypass policies when pushing"
+    }
 
     # --- repository-level policies ---
     $rs = $profiles.repositorySettings

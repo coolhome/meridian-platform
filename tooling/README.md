@@ -10,6 +10,7 @@ on first use) and git 2.30+ with `subtree`.
 | `Sync-ToAzureRepos.ps1` | `git subtree split` each folder and push to its Azure Repo (creates repos) |
 | `Sync-FromAzureRepos.ps1` | Back-port an Azure Repos branch into a folder (`subtree pull --squash`) |
 | `New-AdoPipelines.ps1` | Create/update pipelines, grant pipeline permissions on protected resources, build-service tag rights |
+| `Grant-AdoSyncAccess.ps1` | Sync group membership and "bypass policies when pushing" on every mirror (runs before each mirror) |
 | `Set-AdoBranchPolicies.ps1` | Apply branch + repository policy profiles |
 | `Publish-Platform.ps1` | Boundary check -> sync -> pipelines -> policies -> wiki |
 | `Test-RepoBoundaries.ps1` | ADR 0004 enforcement (also runs in GitHub PR validation) |

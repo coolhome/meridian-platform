@@ -55,9 +55,21 @@ Write-MeridianOk 'settings patched'
 Write-MeridianStep 'security groups'
 $groups = @((Invoke-AzCli devops security group list --project $ctx.Project).graphGroups)
 foreach ($g in $teams.securityGroups) {
-    if ($groups | Where-Object { $_.displayName -eq $g.name }) { Write-MeridianInfo "$($g.name) exists"; continue }
-    $null = Invoke-AzCli devops security group create --name $g.name --description $g.description --project $ctx.Project
-    Write-MeridianOk "created group $($g.name)"
+    $existing = $groups | Where-Object { $_.displayName -eq $g.name } | Select-Object -First 1
+    if ($existing) { Write-MeridianInfo "$($g.name) exists" }
+    else {
+        $existing = Invoke-AzCli devops security group create --name $g.name --description $g.description --project $ctx.Project
+        Write-MeridianOk "created group $($g.name)"
+    }
+    # members are principal names (e-mail); the sync identity that pushes mirrors lives here
+    if ($g.PSObject.Properties['members'] -and $g.members) {
+        $current = @((Invoke-AzCli devops security group membership list --id $existing.descriptor -AllowFailure).PSObject.Properties.Value | ForEach-Object { $_.principalName })
+        foreach ($member in $g.members) {
+            if ($current -contains $member) { continue }
+            $null = Invoke-AzCli devops security group membership add --group-id $existing.descriptor --member-id $member
+            Write-MeridianOk "added $member to $($g.name)"
+        }
+    }
 }
 
 # ---------------------------------------------------------------- area paths + teams
