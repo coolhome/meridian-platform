@@ -8,7 +8,7 @@ param location string = 'eastus2'
 param serviceName string = 'app-frontend'
 param prefix string = 'mrd'
 @allowed(['Free', 'Standard'])
-param skuName string = 'Standard'
+param skuName string = 'Free'
 param tags object = {}
 
 resource site 'Microsoft.Web/staticSites@2023-12-01' = {

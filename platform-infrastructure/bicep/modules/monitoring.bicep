@@ -3,6 +3,7 @@ param tags object
 param logAnalyticsName string
 param appInsightsName string
 param retentionInDays int = 30
+param dailyQuotaGb int = 1
 
 resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2025-02-01' = {
   name: logAnalyticsName
@@ -14,7 +15,7 @@ resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2025-02-01' = {
     }
     retentionInDays: retentionInDays
     workspaceCapping: {
-      dailyQuotaGb: 5
+      dailyQuotaGb: dailyQuotaGb
     }
     publicNetworkAccessForIngestion: 'Enabled'
     publicNetworkAccessForQuery: 'Enabled'
@@ -32,7 +33,7 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
     IngestionMode: 'LogAnalytics'
     publicNetworkAccessForIngestion: 'Enabled'
     publicNetworkAccessForQuery: 'Enabled'
-    RetentionInDays: 90
+    RetentionInDays: 30
   }
 }
 

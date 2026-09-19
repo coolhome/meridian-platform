@@ -2,13 +2,15 @@ param name string
 param location string
 param tags object
 param logAnalyticsWorkspaceId string
+@allowed(['Basic', 'Standard', 'Premium'])
+param skuName string = 'Basic'
 
 resource registry 'Microsoft.ContainerRegistry/registries@2025-04-01' = {
   name: name
   location: location
   tags: tags
   sku: {
-    name: 'Standard'
+    name: skuName
   }
   properties: {
     adminUserEnabled: false

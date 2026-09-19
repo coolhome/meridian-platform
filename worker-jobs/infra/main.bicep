@@ -18,7 +18,7 @@ param uniqueSuffix string
 param platformResourceGroup string = 'rg-${prefix}-${environment}-platform'
 param dataResourceGroup string = 'rg-${prefix}-${environment}-data'
 param minReplicas int = 0
-param maxReplicas int = 5
+param maxReplicas int = 2
 @description('KEDA azure-queue target length per replica.')
 param queueLengthPerReplica int = 10
 param cpu string = '0.25'

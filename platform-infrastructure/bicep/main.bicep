@@ -44,8 +44,19 @@ param cosmosServices array = [
 @description('Locations permitted by policy.')
 param allowedLocations array = [location]
 
-@description('Log Analytics retention in days.')
+@description('Log Analytics retention in days. 30 is the free retention window.')
 param logRetentionInDays int = 30
+
+@description('Log Analytics daily ingestion cap in GB.')
+param logDailyQuotaGb int = 1
+
+@description('Storage redundancy. LRS is the minimal-cost posture (ADR 0007).')
+@allowed(['Standard_LRS', 'Standard_ZRS', 'Standard_GRS'])
+param storageSkuName string = 'Standard_LRS'
+
+@description('Container registry SKU. Basic is the minimal-cost posture (ADR 0007).')
+@allowed(['Basic', 'Standard', 'Premium'])
+param containerRegistrySku string = 'Basic'
 
 @description('Additional tags merged into the platform tag set.')
 param tags object = {}
@@ -111,6 +122,7 @@ module monitoring 'modules/monitoring.bicep' = {
     logAnalyticsName: names.logAnalytics
     appInsightsName: names.appInsights
     retentionInDays: logRetentionInDays
+    dailyQuotaGb: logDailyQuotaGb
   }
 }
 
@@ -131,6 +143,7 @@ module registry 'modules/container-registry.bicep' = if (isShared) {
   scope: rgPlatform
   params: {
     name: containerRegistryName
+    skuName: containerRegistrySku
     location: location
     tags: baseTags
     logAnalyticsWorkspaceId: monitoring.outputs.workspaceId
@@ -170,7 +183,7 @@ module storage 'modules/storage.bicep' = if (!isShared) {
     location: location
     tags: baseTags
     logAnalyticsWorkspaceId: monitoring.outputs.workspaceId
-    skuName: environment == 'prod' ? 'Standard_ZRS' : 'Standard_LRS'
+    skuName: storageSkuName
     queueContributorPrincipalIds: map(filter(identities.outputs.identities, i => contains(queueServices, i.service)), i => i.principalId)
   }
 }

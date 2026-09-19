@@ -102,6 +102,20 @@ dotnet pack platform-libraries -c Release -p:PackageVersion=1.0.0 -o /tmp/meridi
 dotnet restore approval-service --configfile /tmp/nuget.local.config   # see the workflow for the file
 ```
 
+## Cost posture
+
+Every environment, `prod` included, runs the minimal-cost parameters from ADR 0007: Container
+Apps scale to zero at 0.25 vCPU, LRS storage, Basic registry, serverless single-region Cosmos,
+30-day logs capped at 1 GB/day, Free static sites, one availability probe. The governance gates
+are unchanged because they cost nothing.
+
+| Layout | Approximate idle cost per month |
+| --- | --- |
+| `shared` + `dev` | ~$25 |
+| `shared` + `dev` + `test` + `prod` | ~$60 to $80 |
+
+Scaling any environment up is a parameter file change through the normal PR gates.
+
 ## What was verified in this scaffold
 
 | Check | Result |

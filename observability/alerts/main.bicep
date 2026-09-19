@@ -14,8 +14,6 @@ param services array = [
 @description('Services with public health endpoints to probe.')
 param probedServices array = [
   'app-backend'
-  'approval-service'
-  'identity-service'
 ]
 param alertEmail string
 @minValue(1)
@@ -62,7 +60,7 @@ resource failedRequests 'Microsoft.Insights/scheduledQueryRules@2023-03-15-previ
       displayName: '${service}: failed request rate above ${failedRequestPercentThreshold}%'
       severity: severity
       enabled: true
-      evaluationFrequency: 'PT5M'
+      evaluationFrequency: 'PT15M'
       windowSize: 'PT15M'
       scopes: [appInsights.id]
       criteria: {
@@ -97,7 +95,7 @@ resource exceptionSpike 'Microsoft.Insights/scheduledQueryRules@2023-03-15-previ
       displayName: '${service}: more than ${exceptionCountThreshold} exceptions in 15 minutes'
       severity: severity
       enabled: true
-      evaluationFrequency: 'PT5M'
+      evaluationFrequency: 'PT15M'
       windowSize: 'PT15M'
       scopes: [appInsights.id]
       criteria: {
@@ -173,14 +171,12 @@ resource webTest 'Microsoft.Insights/webtests@2022-06-15' = [
       SyntheticMonitorId: 'avail-${prefix}-${environment}-${service}'
       Name: '${service} health (${environment})'
       Enabled: true
-      Frequency: 300
+      Frequency: 900
       Timeout: 30
       Kind: 'standard'
       RetryEnabled: true
       Locations: [
         { Id: 'us-va-ash-azr' }
-        { Id: 'us-il-ch1-azr' }
-        { Id: 'us-tx-sn1-azr' }
       ]
       Request: {
         RequestUrl: 'https://ca-${prefix}-${environment}-${service}.${environment}.placeholder.azurecontainerapps.io/health/live'
@@ -202,7 +198,7 @@ resource availabilityAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = [
     location: 'global'
     tags: baseTags
     properties: {
-      description: '${service}: availability below 99% (2 of 3 locations failing)'
+      description: '${service}: availability below 99% (probe location failing)'
       severity: 1
       enabled: true
       evaluationFrequency: 'PT5M'
@@ -212,7 +208,7 @@ resource availabilityAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = [
         'odata.type': 'Microsoft.Azure.Monitor.WebtestLocationAvailabilityCriteria'
         webTestId: webTest[i].id
         componentId: appInsights.id
-        failedLocationCount: 2
+        failedLocationCount: 1
       }
       autoMitigate: true
       actions: [

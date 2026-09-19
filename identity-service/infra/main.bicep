@@ -15,8 +15,8 @@ param containerRegistry string = 'acrmrdshared.azurecr.io'
 param prefix string = 'mrd'
 param uniqueSuffix string
 param platformResourceGroup string = 'rg-${prefix}-${environment}-platform'
-param minReplicas int = 1
-param maxReplicas int = 3
+param minReplicas int = 0
+param maxReplicas int = 2
 param cpu string = '0.25'
 param memory string = '0.5Gi'
 param tags object = {}
