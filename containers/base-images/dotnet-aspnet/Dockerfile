@@ -3,6 +3,7 @@
 # Upstream is pinned to the 10.0 channel; the resolved digest is recorded as a label at build time
 # by the pipeline (BASE_DIGEST) so every service image can be traced to the exact upstream layer set.
 ARG UPSTREAM=mcr.microsoft.com/dotnet/aspnet:10.0-noble-chiseled
+# hadolint ignore=DL3006  (the tag is pinned in the ARG default above; DL3006 cannot see through the ARG)
 FROM ${UPSTREAM}
 
 ARG APP_VERSION=0.0.0-local

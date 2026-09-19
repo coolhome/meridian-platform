@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1.7
 # Governed .NET runtime base for console jobs (no ASP.NET Core).
 ARG UPSTREAM=mcr.microsoft.com/dotnet/runtime:10.0-noble-chiseled
+# hadolint ignore=DL3006  (the tag is pinned in the ARG default above; DL3006 cannot see through the ARG)
 FROM ${UPSTREAM}
 
 ARG APP_VERSION=0.0.0-local

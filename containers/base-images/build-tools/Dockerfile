@@ -2,6 +2,7 @@
 # Build toolchain for container jobs: .NET 10 SDK, Node 24, PowerShell, GitVersion, CycloneDX.
 # Referenced by pipelines as a job container (resources.containers) when a hermetic build is needed.
 ARG UPSTREAM=mcr.microsoft.com/dotnet/sdk:10.0-noble
+# hadolint ignore=DL3006  (the tag is pinned in the ARG default above; DL3006 cannot see through the ARG)
 FROM ${UPSTREAM}
 
 ARG APP_VERSION=0.0.0-local

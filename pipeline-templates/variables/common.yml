@@ -19,7 +19,7 @@ variables:
 - name: npm_config_cache
   value: $(Pipeline.Workspace)/.npm
 - name: TRIVY_VERSION
-  value: 0.65.0
+  value: 0.74.0
 - name: GITLEAKS_VERSION
   value: 8.28.0
 - name: GITVERSION_VERSION

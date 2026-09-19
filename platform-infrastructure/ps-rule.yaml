@@ -1,6 +1,8 @@
 # PSRule for Azure configuration (run by pipeline-templates/steps/bicep-validate.yml).
 configuration:
-  AZURE_BICEP_FILE_EXPANSION: true
+  # main.bicep has required parameters (environment, uniqueSuffix), so it is analysed through the
+  # per-environment .bicepparam files rather than expanded on its own.
+  AZURE_BICEP_FILE_EXPANSION: false
   AZURE_BICEP_PARAMS_FILE_EXPANSION: true
   AZURE_BICEP_FILE_EXPANSION_TIMEOUT: 30
   AZURE_RESOURCE_ALLOWED_LOCATIONS:

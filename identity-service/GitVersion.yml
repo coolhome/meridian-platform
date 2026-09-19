@@ -1,6 +1,6 @@
 mode: ContinuousDelivery
 next-version: 1.0.0
-tag-prefix: '[vV]'
+tag-prefix: '[vV]?'
 branches:
   main:
     regex: ^main$
