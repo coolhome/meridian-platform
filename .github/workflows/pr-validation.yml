@@ -48,7 +48,7 @@ jobs:
         working-directory: ${{ matrix.folder }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           global-json-file: ${{ matrix.folder }}/global.json
       - name: Pack platform libraries into a local feed (PR builds cannot reach Azure Artifacts)
