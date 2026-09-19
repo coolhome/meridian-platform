@@ -48,16 +48,17 @@ steps:
         args+=(--parameters "${extra[@]}")
       fi
       if [ "$SCOPE" = "subscription" ]; then
-        cmd=(az deployment sub create --location "$LOCATION")
+        scope=sub; scopeArgs=(--location "$LOCATION")
       else
-        cmd=(az deployment group create --resource-group "$RESOURCE_GROUP")
+        scope=group; scopeArgs=(--resource-group "$RESOURCE_GROUP")
       fi
       if [ "$MODE" = "whatIf" ]; then
         mkdir -p "$(Build.ArtifactStagingDirectory)/what-if"
-        "${cmd[@]}" "${args[@]}" --what-if --no-pretty-print --what-if-exclude-change-types NoChange Ignore \
+        # `what-if` is its own subcommand: `create --what-if` prints the summary and rejects --no-pretty-print.
+        az deployment "$scope" what-if "${scopeArgs[@]}" "${args[@]}" --no-pretty-print --exclude-change-types NoChange Ignore \
           | tee "$(Build.ArtifactStagingDirectory)/what-if/${DEPLOYMENT_NAME}.json"
       else
-        "${cmd[@]}" "${args[@]}" --output json > "$(Agent.TempDirectory)/${DEPLOYMENT_NAME}.json"
+        az deployment "$scope" create "${scopeArgs[@]}" "${args[@]}" --output json > "$(Agent.TempDirectory)/${DEPLOYMENT_NAME}.json"
         jq -r '.properties.outputs // {} | to_entries[] | "##vso[task.setvariable variable=out_\(.key);isOutput=true]\(.value.value|tostring)"' "$(Agent.TempDirectory)/${DEPLOYMENT_NAME}.json"
       fi
   name: bicep_${{ replace(parameters.mode, '-', '_') }}

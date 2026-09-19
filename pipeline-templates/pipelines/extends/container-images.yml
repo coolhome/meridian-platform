@@ -60,7 +60,7 @@ stages:
     jobs:
     - deployment: Promote
       pool:
-        vmImage: $(Meridian.VmImage)
+        vmImage: ubuntu-24.04 # deployment jobs cannot take the image from a stage variable (see jobs/deploy-bicep.yml)
       environment: shared
       strategy:
         runOnce:
