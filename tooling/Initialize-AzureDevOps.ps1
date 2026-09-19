@@ -164,7 +164,8 @@ else {
     else {
         # The service silently drops an entry it cannot resolve, so send the identity id as well and read back.
         $grant = ConvertTo-Json -InputObject @(@{ identityId = $buildService.id; identityDescriptor = $buildService.descriptor; role = 'contributor' }) -AsArray -Compress
-        $null = Invoke-AdoRest -Method PATCH -Service feeds -ProjectScoped -Path $feedPath -Body $grant -ApiVersion '7.1-preview.1'
+        $response = Invoke-AdoRest -Method PATCH -Service feeds -ProjectScoped -Path $feedPath -Body $grant -ApiVersion '7.1-preview.1'
+        Write-MeridianInfo "feed permissions PATCH returned: $(($response | ConvertTo-Json -Depth 6 -Compress) ?? '(empty)')"
         $after = @((Invoke-AdoRest -Service feeds -ProjectScoped -Path "${feedPath}?includeIds=true" -ApiVersion '7.1-preview.1').value) | Where-Object $isBuildService | Select-Object -First 1
         if ($after -and $after.role -in @('contributor', 'administrator')) { Write-MeridianOk "build service granted $($after.role) on the feed" }
         else { Write-MeridianWarn "feed permission for '$buildServiceName' (id $($buildService.id)) did not persist; grant Contributor in Artifacts > feed settings > Permissions" }

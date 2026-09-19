@@ -384,3 +384,26 @@ found them. Useful as a "next pages to write" list for the reference.
 * The `az devops invoke` area for checks is `pipelineschecks` / `configurations`;
   `--query-parameters '$expand=settings'` returns the settings, and `PATCH` with the create body
   plus `id` updates a check in place (verified on approval and required-template checks).
+
+---
+
+## Context 5 addendum 2: what six template tags in one afternoon taught us
+
+Each row cost a sync (7 min) plus a run; none of them is in the reference, and each is exactly
+the kind of validated automation knowledge it promises.
+
+| Trap | What happened | Fix |
+| --- | --- | --- |
+| Branch control evaluates every repository resource | The `templates` resource pinned to `refs/tags/v1.0.2` failed "allowed branches" on `packages`; the required-template check was marked failed with it (same static category). | Allow `refs/tags/v*` next to the deployable branches. |
+| `create --what-if` is not `what-if` | `az deployment sub create --what-if --no-pretty-print` fails with "unrecognized arguments" on the hosted CLI; the flag exists only on the `what-if` subcommand. | Use `az deployment <scope> what-if ... --no-pretty-print --exclude-change-types`. |
+| Deployment job pool from a stage variable | `pool: vmImage: $(Meridian.VmImage)` (stage-level variable template) works for plain jobs and abandons deployment jobs with "Pipeline does not have permissions to use the referenced pool(s)". | Compile-time image on deployment jobs (template parameter with a default). |
+| PSRule `-Option` hashtable replaces `ps-rule.yaml` | Passing a hashtable dropped the repository's exclusions; excluded rules came back as failures. | `New-PSRuleOption -Path ps-rule.yaml`, then fill defaults the file did not set. |
+| gitleaks scans history | An inline `gitleaks:allow` on the current line does nothing for the earlier commits that carry the same GUID. | `.gitleaks.toml` with `[extend] useDefault = true` and a `[[allowlists]]` regex. |
+| Pipeline resource without a run | Service pipelines fail validation with "Unable to resolve latest version for pipeline platformLibraries" until that pipeline has one successful run. | Order the first runs; nothing to configure. |
+| hadolint pragma must be bare | `# hadolint ignore=DL3006  (reason)` is ignored; the reason goes on its own comment line. | Two lines. |
+| Feed created by REST has no build-service role | `npm ci` through the feed: 403 "You need to have 'Reader'"; NuGet push would fail the same way. | Contributor for `<Project> Build Service (<org>)`; our PATCH with descriptor and identityId returns without effect (open). |
+| Version pins that never existed | trivy 0.65.0 was never released; the download 404 took the scan job and Publish SARIF with it. | Verify release assets (`gh api repos/<owner>/<repo>/releases/tags/v<x>`) when pinning. |
+
+**Wish the reference had:** a page "the first run of a governed template", listing the queue-time
+validations (service connections, pools, pipeline resources, every listed environment) that run
+before a single job starts, and which of them cannot be satisfied with variables.
