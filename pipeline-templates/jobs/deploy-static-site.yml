@@ -1,0 +1,66 @@
+# Deploys a prebuilt SPA to Azure Static Web Apps. The SWA resource comes from the
+# service-owned infra/main.bicep; the deployment token is read at deploy time from the
+# resource (no stored secret) and masked.
+parameters:
+- name: environment
+  type: string
+- name: serviceName
+  type: string
+- name: infra
+  type: object
+  default: {}
+
+jobs:
+- deployment: Deploy
+  displayName: Deploy ${{ parameters.serviceName }} to ${{ parameters.environment }}
+  pool:
+    vmImage: $(Meridian.VmImage)
+  environment: ${{ parameters.environment }}
+  variables:
+  - name: Meridian.StaticWebApp
+    value: swa-mrd-${{ parameters.environment }}-${{ parameters.serviceName }}
+  - name: Meridian.InfraTemplate
+    value: ${{ coalesce(parameters.infra.templatePath, 'infra/main.bicep') }}
+  - name: Meridian.InfraParameters
+    value: ${{ replace(coalesce(parameters.infra.parametersPattern, 'infra/params/{env}.bicepparam'), '{env}', parameters.environment) }}
+  strategy:
+    runOnce:
+      deploy:
+        steps:
+        - download: current
+          artifact: drop
+        - template: ../steps/checkout.yml
+          parameters:
+            fetchDepth: 1
+        - template: ../steps/bicep-deploy.yml
+          parameters:
+            serviceConnection: $(Meridian.ServiceConnection)
+            scope: resourceGroup
+            resourceGroup: $(Meridian.ResourceGroup.Apps)
+            templatePath: $(Meridian.InfraTemplate)
+            parametersFile: $(Meridian.InfraParameters)
+            deploymentName: ${{ parameters.serviceName }}-$(Build.BuildId)
+        - task: AzureCLI@2
+          displayName: Read deployment token
+          inputs:
+            azureSubscription: $(Meridian.ServiceConnection)
+            scriptType: bash
+            scriptLocation: inlineScript
+            inlineScript: |
+              set -euo pipefail
+              token=$(az staticwebapp secrets list --name "$SWA" --resource-group "$RG" --query properties.apiKey -o tsv)
+              echo "##vso[task.setvariable variable=swaToken;issecret=true]$token"
+          env:
+            SWA: $(Meridian.StaticWebApp)
+            RG: $(Meridian.ResourceGroup.Apps)
+        - task: AzureStaticWebApp@0
+          displayName: Upload site
+          inputs:
+            cwd: $(Pipeline.Workspace)/drop
+            app_location: /
+            skip_app_build: true
+            skip_api_build: true
+            azure_static_web_apps_api_token: $(swaToken)
+        - template: ../steps/smoke-test.yml
+          parameters:
+            url: https://$(bicep_deploy.out_defaultHostname)/

@@ -1,0 +1,41 @@
+# Plain job (not a deployment): runs before the environment's approval so approvers can
+# read the what-if artifact before they approve.
+parameters:
+- name: environment
+  type: string
+- name: name
+  type: string
+- name: scope
+  type: string
+  default: resourceGroup
+- name: templatePath
+  type: string
+- name: parametersFile
+  type: string
+  default: ''
+- name: resourceGroup
+  type: string
+  default: ''
+- name: additionalParameters
+  type: string
+  default: ''
+
+jobs:
+- job: WhatIf
+  displayName: What-if ${{ parameters.name }} in ${{ parameters.environment }}
+  pool:
+    vmImage: $(Meridian.VmImage)
+  steps:
+  - template: ../steps/checkout.yml
+    parameters:
+      fetchDepth: 1
+  - template: ../steps/bicep-deploy.yml
+    parameters:
+      serviceConnection: $(Meridian.ServiceConnection)
+      scope: ${{ parameters.scope }}
+      resourceGroup: ${{ parameters.resourceGroup }}
+      templatePath: ${{ parameters.templatePath }}
+      parametersFile: ${{ parameters.parametersFile }}
+      additionalParameters: ${{ parameters.additionalParameters }}
+      deploymentName: ${{ parameters.name }}-${{ parameters.environment }}
+      mode: whatIf

@@ -1,0 +1,22 @@
+# Build-validation pipeline bound to main and release/* by branch policy. No deploy stages.
+trigger: none
+
+resources:
+  repositories:
+  - repository: templates
+    type: git
+    name: Meridian/meridian-pipeline-templates
+    ref: refs/tags/v1.0.0
+
+variables:
+- name: Meridian.Component
+  value: platform-infrastructure
+
+extends:
+  template: pipelines/extends/infrastructure.yml@templates
+  parameters:
+    name: platform
+    scope: subscription
+    templatePath: bicep/main.bicep
+    parametersPattern: bicep/params/{env}.bicepparam
+    deploy: false

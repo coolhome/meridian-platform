@@ -1,0 +1,24 @@
+# Build-validation pipeline for pull requests (bound by branch policy). Same governed
+# template, deploy disabled: Build + Scan only.
+trigger: none
+
+resources:
+  repositories:
+  - repository: templates
+    type: git
+    name: Meridian/meridian-pipeline-templates
+    ref: refs/tags/v1.0.0
+
+variables:
+- name: Meridian.Component
+  value: identity-service
+
+extends:
+  template: pipelines/extends/service.yml@templates
+  parameters:
+    serviceName: identity-service
+    kind: dotnet-api
+    deploy: false
+    dotnet:
+      publishProject: src/Meridian.Identity.Api/Meridian.Identity.Api.csproj
+      lockedMode: false

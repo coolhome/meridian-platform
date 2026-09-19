@@ -1,0 +1,35 @@
+# Scans the image just pushed to ACR using a short-lived registry token.
+parameters:
+- name: repository
+  type: string
+- name: serviceConnection
+  type: string
+  default: sc-meridian-shared
+
+steps:
+- task: AzureCLI@2
+  displayName: Trivy image scan (CRITICAL gates)
+  inputs:
+    azureSubscription: ${{ parameters.serviceConnection }}
+    scriptType: bash
+    scriptLocation: inlineScript
+    inlineScript: |
+      set -euo pipefail
+      curl -fsSL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" | tar -xz -C /tmp trivy
+      TRIVY_USERNAME=00000000-0000-0000-0000-000000000000
+      TRIVY_PASSWORD=$(az acr login --name "$ACR_NAME" --expose-token --query accessToken -o tsv)
+      export TRIVY_USERNAME TRIVY_PASSWORD
+      mkdir -p "$(Build.ArtifactStagingDirectory)/CodeAnalysisLogs"
+      /tmp/trivy image --format sarif --output "$(Build.ArtifactStagingDirectory)/CodeAnalysisLogs/trivy-image.sarif" "${ACR_NAME}.azurecr.io/${IMAGE_REPOSITORY}:${BUILD_NUMBER}"
+      /tmp/trivy image --severity CRITICAL --ignore-unfixed --exit-code 1 "${ACR_NAME}.azurecr.io/${IMAGE_REPOSITORY}:${BUILD_NUMBER}"
+  env:
+    ACR_NAME: $(Meridian.AcrName)
+    IMAGE_REPOSITORY: ${{ parameters.repository }}
+    BUILD_NUMBER: $(Build.BuildNumber)
+    TRIVY_VERSION: $(TRIVY_VERSION)
+- task: PublishPipelineArtifact@1
+  displayName: Publish image SARIF
+  condition: succeededOrFailed()
+  inputs:
+    targetPath: $(Build.ArtifactStagingDirectory)/CodeAnalysisLogs
+    artifact: CodeAnalysisLogs-image

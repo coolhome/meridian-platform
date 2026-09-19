@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://meridian.local/schemas/repos.manifest.schema.json",
+  "title": "Meridian repository manifest",
+  "type": "object",
+  "required": ["platform", "github", "azureDevOps", "governance", "repos"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "platform": {
+      "type": "object",
+      "required": ["name", "displayName", "resourcePrefix"],
+      "properties": {
+        "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" },
+        "displayName": { "type": "string" },
+        "resourcePrefix": { "type": "string", "pattern": "^[a-z]{2,5}$" }
+      }
+    },
+    "github": {
+      "type": "object",
+      "required": ["repository", "defaultBranch"],
+      "properties": {
+        "repository": { "type": "string", "pattern": "^[^/]+/[^/]+$" },
+        "defaultBranch": { "type": "string" }
+      }
+    },
+    "azureDevOps": {
+      "type": "object",
+      "required": ["organizationUrl", "project", "defaultBranch", "syncBranches", "artifactsFeed", "templatesRepository", "templatesRef", "allowedTemplateRefs", "containerRegistry", "serviceConnections", "variableGroups"],
+      "properties": {
+        "organizationUrl": { "type": "string", "format": "uri" },
+        "project": { "type": "string" },
+        "projectDescription": { "type": "string" },
+        "processTemplate": { "type": "string", "enum": ["Agile", "Scrum", "Basic", "CMMI"] },
+        "defaultBranch": { "type": "string" },
+        "syncBranches": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "artifactsFeed": { "type": "string" },
+        "agentPool": { "type": "string" },
+        "templatesRepository": { "type": "string" },
+        "templatesRef": { "type": "string", "pattern": "^refs/(tags|heads)/" },
+        "allowedTemplateRefs": { "type": "array", "items": { "type": "string", "pattern": "^refs/(tags|heads)/" }, "minItems": 1 },
+        "containerRegistry": { "type": "string", "pattern": "^[a-z0-9]{5,50}$" },
+        "wiki": {
+          "type": "object",
+          "required": ["name", "repository", "mappedPath"],
+          "properties": {
+            "name": { "type": "string" },
+            "repository": { "type": "string" },
+            "mappedPath": { "type": "string" }
+          }
+        },
+        "serviceConnections": { "type": "object", "additionalProperties": { "type": "string" } },
+        "variableGroups": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "governance": {
+      "type": "object",
+      "required": ["environments", "branchPolicyProfiles", "teams", "overlay"],
+      "additionalProperties": { "type": "string" }
+    },
+    "repos": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["folder", "name", "tier", "owners", "pipelines"],
+        "additionalProperties": false,
+        "properties": {
+          "folder": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" },
+          "name": { "type": ["string", "null"], "pattern": "^[a-z][a-z0-9-]+$" },
+          "tier": { "type": "string", "enum": ["governance", "platform", "library", "service", "tooling"] },
+          "owners": { "type": "string" },
+          "mirror": { "type": "boolean", "default": true },
+          "policyProfile": { "type": "string" },
+          "areaPath": { "type": "string" },
+          "pipelineFolder": { "type": "string", "pattern": "^\\\\" },
+          "pipelines": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["name", "yaml", "kind"],
+              "additionalProperties": false,
+              "properties": {
+                "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" },
+                "yaml": { "type": "string" },
+                "kind": { "type": "string", "enum": ["ci", "cicd", "pr", "scheduled"] }
+              }
+            }
+          }
+        },
+        "if": { "properties": { "mirror": { "const": false } } },
+        "then": {},
+        "else": { "required": ["policyProfile", "areaPath", "pipelineFolder"] }
+      }
+    }
+  }
+}

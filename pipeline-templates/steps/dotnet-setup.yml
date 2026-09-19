@@ -1,0 +1,20 @@
+parameters:
+- name: sdkVersion
+  type: string
+  default: 10.0.x
+
+steps:
+- task: UseDotNet@2
+  displayName: Use .NET SDK ${{ parameters.sdkVersion }}
+  inputs:
+    packageType: sdk
+    version: ${{ parameters.sdkVersion }}
+- task: Cache@2
+  displayName: Cache NuGet packages
+  inputs:
+    key: '"nuget" | "$(Agent.OS)" | **/packages.lock.json, !**/bin/**, !**/obj/**'
+    restoreKeys: |
+      "nuget" | "$(Agent.OS)"
+    path: $(NUGET_PACKAGES)
+- task: NuGetAuthenticate@1
+  displayName: Authenticate to Azure Artifacts

@@ -1,0 +1,36 @@
+# Image = governed base image + the already-built, already-tested publish output from the
+# Build stage. No restore or compile happens inside the Dockerfile, so the image build
+# needs no feed credentials and the tested bits are exactly what ships.
+parameters:
+- name: serviceName
+  type: string
+- name: container
+  type: object
+  default: {}
+
+jobs:
+- job: Package
+  displayName: Build and scan image
+  pool:
+    vmImage: $(Meridian.VmImage)
+  steps:
+  - template: ../steps/checkout.yml
+    parameters:
+      fetchDepth: 1
+  - download: current
+    artifact: drop
+  - script: |
+      set -euo pipefail
+      rm -rf .publish && mkdir -p .publish
+      cp -R "$(Pipeline.Workspace)/drop/." .publish/
+      ls -la .publish | head -20
+    displayName: Stage publish output into build context
+  - template: ../steps/container-build-push.yml
+    parameters:
+      repository: ${{ coalesce(parameters.container.repository, format('services/{0}', parameters.serviceName)) }}
+      dockerfile: ${{ coalesce(parameters.container.dockerfile, 'Dockerfile') }}
+      context: ${{ coalesce(parameters.container.context, '.') }}
+      baseImage: ${{ coalesce(parameters.container.baseImage, 'base/dotnet-aspnet:10.0') }}
+  - template: ../steps/container-scan.yml
+    parameters:
+      repository: ${{ coalesce(parameters.container.repository, format('services/{0}', parameters.serviceName)) }}

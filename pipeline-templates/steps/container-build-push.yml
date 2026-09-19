@@ -1,0 +1,49 @@
+# Builds in the shared ACR with ACR Tasks (no Docker daemon on the agent, registry
+# firewall friendly). Tags: build number (semver) and full commit SHA. The governed base
+# image is injected as BASE_IMAGE so Dockerfiles keep a public fallback for local builds.
+parameters:
+- name: repository
+  type: string
+- name: dockerfile
+  type: string
+  default: Dockerfile
+- name: context
+  type: string
+  default: .
+- name: serviceConnection
+  type: string
+  default: sc-meridian-shared
+- name: baseImage
+  type: string
+  default: ''
+
+steps:
+- task: AzureCLI@2
+  displayName: az acr build ${{ parameters.repository }}
+  inputs:
+    azureSubscription: ${{ parameters.serviceConnection }}
+    scriptType: bash
+    scriptLocation: inlineScript
+    inlineScript: |
+      set -euo pipefail
+      args=(--registry "$ACR_NAME"
+            --image "${IMAGE_REPOSITORY}:${BUILD_NUMBER}"
+            --image "${IMAGE_REPOSITORY}:sha-${SOURCE_VERSION}"
+            --file "${DOCKERFILE}"
+            --build-arg "APP_VERSION=${BUILD_NUMBER}"
+            --build-arg "VCS_REF=${SOURCE_VERSION}")
+      if [ -n "$BASE_IMAGE" ]; then args+=(--build-arg "BASE_IMAGE=${ACR_NAME}.azurecr.io/${BASE_IMAGE}"); fi
+      az acr build "${args[@]}" "${CONTEXT}"
+      digest=$(az acr repository show --name "$ACR_NAME" --image "${IMAGE_REPOSITORY}:${BUILD_NUMBER}" --query digest -o tsv)
+      echo "##vso[task.setvariable variable=imageDigest;isOutput=true]$digest"
+      echo "##vso[task.setvariable variable=imageRef;isOutput=true]${ACR_NAME}.azurecr.io/${IMAGE_REPOSITORY}@${digest}"
+      echo "Image ${IMAGE_REPOSITORY}:${BUILD_NUMBER} digest ${digest}"
+  name: image
+  env:
+    ACR_NAME: $(Meridian.AcrName)
+    IMAGE_REPOSITORY: ${{ parameters.repository }}
+    BUILD_NUMBER: $(Build.BuildNumber)
+    SOURCE_VERSION: $(Build.SourceVersion)
+    DOCKERFILE: ${{ parameters.dockerfile }}
+    CONTEXT: ${{ parameters.context }}
+    BASE_IMAGE: ${{ parameters.baseImage }}

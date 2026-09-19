@@ -1,0 +1,64 @@
+parameters:
+- name: projects
+  type: string
+  default: src/**/*.csproj
+- name: testProjects
+  type: string
+  default: tests/**/*.csproj
+- name: publishProject
+  type: string
+  default: ''
+- name: lockedMode
+  type: boolean
+  default: true
+
+steps:
+- task: DotNetCoreCLI@2
+  displayName: dotnet restore
+  inputs:
+    command: restore
+    projects: |
+      ${{ parameters.projects }}
+      ${{ parameters.testProjects }}
+    feedsToUse: config
+    nugetConfigPath: nuget.config
+    ${{ if eq(parameters.lockedMode, true) }}:
+      arguments: --locked-mode
+- task: DotNetCoreCLI@2
+  displayName: dotnet build
+  inputs:
+    command: build
+    projects: |
+      ${{ parameters.projects }}
+      ${{ parameters.testProjects }}
+    arguments: --configuration Release --no-restore -p:ContinuousIntegrationBuild=true -p:Version=$(Build.BuildNumber)
+- task: DotNetCoreCLI@2
+  displayName: dotnet test
+  inputs:
+    command: test
+    projects: ${{ parameters.testProjects }}
+    arguments: --configuration Release --no-build --collect:"XPlat Code Coverage" --logger trx --results-directory $(Agent.TempDirectory)/TestResults
+    publishTestResults: false
+- task: PublishTestResults@2
+  displayName: Publish test results
+  condition: succeededOrFailed()
+  inputs:
+    testResultsFormat: VSTest
+    testResultsFiles: '**/*.trx'
+    searchFolder: $(Agent.TempDirectory)/TestResults
+    failTaskOnFailedTests: true
+- task: PublishCodeCoverageResults@2
+  displayName: Publish coverage
+  condition: succeededOrFailed()
+  inputs:
+    summaryFileLocation: $(Agent.TempDirectory)/TestResults/**/coverage.cobertura.xml
+- ${{ if ne(parameters.publishProject, '') }}:
+  - task: DotNetCoreCLI@2
+    displayName: dotnet publish
+    inputs:
+      command: publish
+      publishWebProjects: false
+      projects: ${{ parameters.publishProject }}
+      arguments: --configuration Release --no-build --output $(Build.ArtifactStagingDirectory)/app -p:Version=$(Build.BuildNumber)
+      zipAfterPublish: false
+      modifyOutputPath: false

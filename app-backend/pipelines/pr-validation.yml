@@ -1,0 +1,22 @@
+trigger: none
+
+resources:
+  repositories:
+  - repository: templates
+    type: git
+    name: Meridian/meridian-pipeline-templates
+    ref: refs/tags/v1.0.0
+
+variables:
+- name: Meridian.Component
+  value: app-backend
+
+extends:
+  template: pipelines/extends/service.yml@templates
+  parameters:
+    serviceName: app-backend
+    kind: dotnet-api
+    deploy: false
+    dotnet:
+      publishProject: src/Meridian.Bff/Meridian.Bff.csproj
+      lockedMode: false

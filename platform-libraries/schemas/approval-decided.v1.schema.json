@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://meridian.local/schemas/approval-decided.v1.schema.json",
+  "title": "meridian.approval.decided v1",
+  "allOf": [{ "$ref": "envelope.schema.json" }],
+  "properties": {
+    "messageType": { "const": "meridian.approval.decided" },
+    "schemaVersion": { "const": 1 },
+    "payload": {
+      "type": "object",
+      "required": ["approvalId", "decision", "decidedBy", "decidedAt"],
+      "properties": {
+        "approvalId": { "type": "string", "format": "uuid" },
+        "decision": { "type": "string", "enum": ["approved", "rejected"] },
+        "decidedBy": { "type": "string", "minLength": 1 },
+        "comment": { "type": ["string", "null"], "maxLength": 2000 },
+        "decidedAt": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

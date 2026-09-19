@@ -1,0 +1,10 @@
+// 30-day availability SLI per service against the SLO in slo/slos.yaml (99.5% for app-backend).
+let slo = 99.5;
+requests
+| where timestamp > ago(30d)
+| summarize total = count(), good = countif(success == true and duration < 1000) by cloud_RoleName
+| extend sli = round(100.0 * good / total, 3)
+| extend budgetMinutes = round(30d / 1m * (100 - slo) / 100, 0)
+| extend burnedMinutes = round(30d / 1m * (100 - sli) / 100, 0)
+| extend remainingPercent = round(100.0 * (budgetMinutes - burnedMinutes) / budgetMinutes, 1)
+| project cloud_RoleName, sli, slo, budgetMinutes, burnedMinutes, remainingPercent

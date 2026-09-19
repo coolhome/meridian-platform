@@ -1,0 +1,27 @@
+# ACR Task: rebuild governed base images when their upstream base image changes.
+# Registered by scripts/Register-AcrTasks.ps1 with --base-image-trigger-enabled true.
+# {{.Run.Registry}} resolves to the registry the task runs in.
+version: v1.1.0
+steps:
+  - id: aspnet
+    build: >-
+      -t {{.Run.Registry}}/base/dotnet-aspnet:10.0
+      -t {{.Run.Registry}}/base/dotnet-aspnet:10.0-{{.Run.ID}}
+      --build-arg APP_VERSION=acr-{{.Run.ID}}
+      --build-arg VCS_REF={{.Run.Commit}}
+      -f base-images/dotnet-aspnet/Dockerfile base-images/dotnet-aspnet
+  - id: runtime
+    build: >-
+      -t {{.Run.Registry}}/base/dotnet-runtime:10.0
+      -t {{.Run.Registry}}/base/dotnet-runtime:10.0-{{.Run.ID}}
+      --build-arg APP_VERSION=acr-{{.Run.ID}}
+      --build-arg VCS_REF={{.Run.Commit}}
+      -f base-images/dotnet-runtime/Dockerfile base-images/dotnet-runtime
+    when: ["-"]
+  - id: push
+    push:
+      - "{{.Run.Registry}}/base/dotnet-aspnet:10.0"
+      - "{{.Run.Registry}}/base/dotnet-aspnet:10.0-{{.Run.ID}}"
+      - "{{.Run.Registry}}/base/dotnet-runtime:10.0"
+      - "{{.Run.Registry}}/base/dotnet-runtime:10.0-{{.Run.ID}}"
+    when: ["aspnet", "runtime"]

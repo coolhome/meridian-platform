@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Meridian.Identity.Api/Meridian.Identity.Api.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Meridian.Identity.Api.Tests/Meridian.Identity.Api.Tests.csproj" />
+  </Folder>
+</Solution>

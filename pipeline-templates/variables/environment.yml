@@ -1,0 +1,21 @@
+# Per-environment variables. Included at the scope of each Deploy_<env> stage.
+# The variable group meridian-<env> supplies: AzureSubscriptionId, Location, UniqueSuffix,
+# and (Key Vault-linked) any secrets the environment needs.
+parameters:
+- name: environment
+  type: string
+
+variables:
+- group: meridian-${{ parameters.environment }}
+- name: Meridian.Environment
+  value: ${{ parameters.environment }}
+- name: Meridian.ServiceConnection
+  value: sc-meridian-${{ parameters.environment }}
+- name: Meridian.ResourceGroup.Platform
+  value: rg-mrd-${{ parameters.environment }}-platform
+- name: Meridian.ResourceGroup.Apps
+  value: rg-mrd-${{ parameters.environment }}-apps
+- name: Meridian.ResourceGroup.Data
+  value: rg-mrd-${{ parameters.environment }}-data
+- name: Meridian.ContainerAppsEnvironment
+  value: cae-mrd-${{ parameters.environment }}

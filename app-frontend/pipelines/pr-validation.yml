@@ -1,0 +1,19 @@
+trigger: none
+
+resources:
+  repositories:
+  - repository: templates
+    type: git
+    name: Meridian/meridian-pipeline-templates
+    ref: refs/tags/v1.0.0
+
+variables:
+- name: Meridian.Component
+  value: app-frontend
+
+extends:
+  template: pipelines/extends/service.yml@templates
+  parameters:
+    serviceName: app-frontend
+    kind: node-spa
+    deploy: false

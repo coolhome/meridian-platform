@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <RootNamespace>Meridian.Bff</RootNamespace>
+    <UserSecretsId>meridian-app-backend</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Meridian.ServiceDefaults" Version="$(MeridianPackageVersion)" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Meridian.Bff.Tests" />
+  </ItemGroup>
+
+</Project>

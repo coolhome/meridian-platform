@@ -1,0 +1,149 @@
+name: PR validation
+
+on:
+  pull_request:
+    branches: [main, "release/**"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  boundaries:
+    name: Boundaries and change detection
+    runs-on: ubuntu-24.04
+    outputs:
+      folders: ${{ steps.changed.outputs.folders }}
+      dotnet: ${{ steps.changed.outputs.dotnet }}
+      node: ${{ steps.changed.outputs.node }}
+      bicep: ${{ steps.changed.outputs.bicep }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate manifest against schema
+        run: npx --yes ajv-cli@5 validate -s tooling/schemas/repos.manifest.schema.json -d repos.manifest.json --spec=draft2020 --strict=false
+      - name: Repository boundaries (ADR 0004)
+        shell: pwsh
+        run: ./tooling/Test-RepoBoundaries.ps1
+      - name: Changed folders
+        id: changed
+        shell: pwsh
+        run: ./tooling/Get-ChangedFolders.ps1 -Base ${{ github.event.pull_request.base.sha }} -Head ${{ github.event.pull_request.head.sha }}
+
+  dotnet:
+    name: .NET ${{ matrix.folder }}
+    needs: boundaries
+    if: needs.boundaries.outputs.dotnet != '[]'
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        folder: ${{ fromJson(needs.boundaries.outputs.dotnet) }}
+    defaults:
+      run:
+        working-directory: ${{ matrix.folder }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: ${{ matrix.folder }}/global.json
+      - name: Pack platform libraries into a local feed (PR builds cannot reach Azure Artifacts)
+        if: matrix.folder != 'platform-libraries'
+        working-directory: platform-libraries
+        run: |
+          dotnet restore --locked-mode
+          dotnet pack --configuration Release --no-restore -p:Version=0.0.0-pr -o "$RUNNER_TEMP/local-feed"
+          # Same source names and package source mapping as the service nuget.config, with the
+          # meridian source pointing at the local folder so mapping still applies.
+          cat > "$RUNNER_TEMP/nuget.local.config" <<EOF
+          <?xml version="1.0" encoding="utf-8"?>
+          <configuration>
+            <packageSources>
+              <clear />
+              <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
+              <add key="meridian" value="$RUNNER_TEMP/local-feed" />
+            </packageSources>
+            <packageSourceMapping>
+              <packageSource key="nuget.org"><package pattern="*" /></packageSource>
+              <packageSource key="meridian"><package pattern="Meridian.*" /></packageSource>
+            </packageSourceMapping>
+          </configuration>
+          EOF
+      - name: Restore
+        run: |
+          if [ "${{ matrix.folder }}" = "platform-libraries" ]; then
+            dotnet restore --locked-mode
+          else
+            dotnet restore --configfile "$RUNNER_TEMP/nuget.local.config" -p:MeridianPackageVersion=0.0.0-pr
+          fi
+      - name: Build
+        run: dotnet build --configuration Release --no-restore -p:MeridianPackageVersion=0.0.0-pr
+      - name: Test
+        run: dotnet test --configuration Release --no-build --logger "trx;LogFileName=results.trx"
+      - name: Publish + Docker build (smoke)
+        if: hashFiles(format('{0}/Dockerfile', matrix.folder)) != ''
+        run: |
+          proj=$(grep -o 'publishProject: .*' azure-pipelines.yml | awk '{print $2}')
+          dotnet publish "$proj" --configuration Release --no-build -o .publish
+          docker build -t "${{ matrix.folder }}:pr" .
+
+  node:
+    name: Node ${{ matrix.folder }}
+    needs: boundaries
+    if: needs.boundaries.outputs.node != '[]'
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        folder: ${{ fromJson(needs.boundaries.outputs.node) }}
+    defaults:
+      run:
+        working-directory: ${{ matrix.folder }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ${{ matrix.folder }}/.nvmrc
+          cache: npm
+          cache-dependency-path: ${{ matrix.folder }}/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+      - run: npm test -- --run
+      - run: npm run build
+
+  bicep:
+    name: Bicep ${{ matrix.folder }}
+    needs: boundaries
+    if: needs.boundaries.outputs.bicep != '[]'
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        folder: ${{ fromJson(needs.boundaries.outputs.bicep) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: bicep build + lint
+        run: |
+          az bicep install
+          status=0
+          while IFS= read -r f; do az bicep build --file "$f" --stdout > /dev/null || status=1; done < <(find "${{ matrix.folder }}" -name '*.bicep')
+          while IFS= read -r f; do az bicep build-params --file "$f" --stdout > /dev/null || status=1; done < <(find "${{ matrix.folder }}" -name '*.bicepparam')
+          exit $status
+      - name: PSRule for Azure
+        shell: pwsh
+        run: |
+          Install-Module PSRule.Rules.Azure -RequiredVersion 1.45.0 -Force -Scope CurrentUser
+          Assert-PSRule -InputPath "${{ matrix.folder }}" -Module PSRule.Rules.Azure -Format File -ErrorAction Stop
+
+  pipelines-yaml:
+    name: Pipeline YAML lint
+    needs: boundaries
+    if: contains(needs.boundaries.outputs.folders, 'pipeline-templates')
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: pipx install yamllint==1.35.1 && yamllint -c pipeline-templates/.yamllint.yml pipeline-templates

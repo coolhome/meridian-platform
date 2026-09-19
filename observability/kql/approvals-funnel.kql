@@ -1,0 +1,10 @@
+// Approvals funnel: created -> decided, by day. Custom events are emitted by approval-service.
+customEvents
+| where name in ("ApprovalCreated", "ApprovalDecided")
+| summarize created = countif(name == "ApprovalCreated"),
+            decided = countif(name == "ApprovalDecided"),
+            approved = countif(name == "ApprovalDecided" and tostring(customDimensions.decision) == "Approved"),
+            rejected = countif(name == "ApprovalDecided" and tostring(customDimensions.decision) == "Rejected")
+  by bin(timestamp, 1d)
+| extend decisionRate = round(100.0 * decided / created, 1)
+| order by timestamp desc

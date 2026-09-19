@@ -1,0 +1,15 @@
+# Tags the Azure Repo with the released version. Requires the project build service to
+# have Contribute + Create tag on the repository (granted by tooling/New-AdoPipelines.ps1).
+steps:
+- checkout: self
+  persistCredentials: false
+  fetchDepth: 1
+- script: |
+    set -euo pipefail
+    tag="v$(Build.BuildNumber)"
+    auth=$(printf ':%s' "$SYSTEM_ACCESSTOKEN" | base64 -w0)
+    git -c "http.extraheader=AUTHORIZATION: basic $auth" tag -a "$tag" -m "Released by $(Build.DefinitionName) run $(Build.BuildId)" "$(Build.SourceVersion)" 2>/dev/null || true
+    git -c "http.extraheader=AUTHORIZATION: basic $auth" push origin "refs/tags/$tag"
+  displayName: Tag release
+  env:
+    SYSTEM_ACCESSTOKEN: $(System.AccessToken)

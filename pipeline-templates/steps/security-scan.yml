@@ -1,0 +1,38 @@
+# Repository-level scanning: secrets (Gitleaks), dependencies + IaC + misconfig (Trivy).
+# Secret findings and CRITICAL vulnerabilities gate; everything else is advisory and
+# published as SARIF for the CodeAnalysisLogs tab.
+parameters:
+- name: scanIaC
+  type: boolean
+  default: true
+
+steps:
+- script: |
+    set -euo pipefail
+    curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar -xz -C /tmp gitleaks
+    curl -fsSL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" | tar -xz -C /tmp trivy
+    mkdir -p "$(Build.ArtifactStagingDirectory)/CodeAnalysisLogs"
+  displayName: Install scanners
+  env:
+    GITLEAKS_VERSION: $(GITLEAKS_VERSION)
+    TRIVY_VERSION: $(TRIVY_VERSION)
+- script: |
+    set -euo pipefail
+    /tmp/gitleaks git --no-banner --redact --exit-code 1 --report-format sarif --report-path "$(Build.ArtifactStagingDirectory)/CodeAnalysisLogs/gitleaks.sarif" .
+  displayName: Gitleaks (gating)
+- script: |
+    set -euo pipefail
+    /tmp/trivy fs --scanners vuln,secret,misconfig --format sarif --output "$(Build.ArtifactStagingDirectory)/CodeAnalysisLogs/trivy-fs.sarif" .
+    /tmp/trivy fs --scanners vuln --severity CRITICAL --ignore-unfixed --exit-code 1 .
+  displayName: Trivy filesystem (CRITICAL gates)
+- ${{ if eq(parameters.scanIaC, true) }}:
+  - script: |
+      set -euo pipefail
+      /tmp/trivy config --severity HIGH,CRITICAL --exit-code 1 --format table . || { echo "##vso[task.logissue type=error]IaC misconfiguration"; exit 1; }
+    displayName: Trivy IaC (HIGH gates)
+- task: PublishPipelineArtifact@1
+  displayName: Publish SARIF
+  condition: succeededOrFailed()
+  inputs:
+    targetPath: $(Build.ArtifactStagingDirectory)/CodeAnalysisLogs
+    artifact: CodeAnalysisLogs

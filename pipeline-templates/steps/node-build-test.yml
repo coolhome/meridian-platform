@@ -1,0 +1,51 @@
+parameters:
+- name: workingDirectory
+  type: string
+  default: .
+- name: outputDirectory
+  type: string
+  default: dist
+
+steps:
+- script: npm ci --no-audit --no-fund
+  displayName: npm ci
+  workingDirectory: ${{ parameters.workingDirectory }}
+- script: npm run lint
+  displayName: npm run lint
+  workingDirectory: ${{ parameters.workingDirectory }}
+- script: npm test -- --run --reporter=junit --outputFile=$(Agent.TempDirectory)/TestResults/junit.xml --coverage --coverage.reporter=cobertura --coverage.reportsDirectory=$(Agent.TempDirectory)/TestResults/coverage
+  displayName: npm test
+  workingDirectory: ${{ parameters.workingDirectory }}
+- task: PublishTestResults@2
+  displayName: Publish test results
+  condition: succeededOrFailed()
+  inputs:
+    testResultsFormat: JUnit
+    testResultsFiles: junit.xml
+    searchFolder: $(Agent.TempDirectory)/TestResults
+    failTaskOnFailedTests: true
+- task: PublishCodeCoverageResults@2
+  displayName: Publish coverage
+  condition: succeededOrFailed()
+  inputs:
+    summaryFileLocation: $(Agent.TempDirectory)/TestResults/coverage/cobertura-coverage.xml
+- script: npm run build
+  displayName: npm run build
+  workingDirectory: ${{ parameters.workingDirectory }}
+  env:
+    VITE_APP_VERSION: $(Build.BuildNumber)
+- script: |
+    set -euo pipefail
+    npx --yes @cyclonedx/cyclonedx-npm@2.0.0 --output-format JSON --output-file "$(Build.ArtifactStagingDirectory)/sbom/app.cdx.json" --mc-type application
+  displayName: SBOM (CycloneDX)
+  workingDirectory: ${{ parameters.workingDirectory }}
+- task: PublishPipelineArtifact@1
+  displayName: Publish SBOM
+  inputs:
+    targetPath: $(Build.ArtifactStagingDirectory)/sbom
+    artifact: sbom
+- task: PublishPipelineArtifact@1
+  displayName: Publish site
+  inputs:
+    targetPath: ${{ parameters.workingDirectory }}/${{ parameters.outputDirectory }}
+    artifact: drop

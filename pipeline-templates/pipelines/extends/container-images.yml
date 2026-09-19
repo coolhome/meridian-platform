@@ -1,0 +1,86 @@
+# Governed pipeline for base images. Each image is built with ACR Tasks into the shared
+# registry, scanned, and only then tagged as the floating channel tag (e.g. 10.0).
+parameters:
+- name: images
+  type: object
+  # - name: dotnet-aspnet
+  #   context: base-images/dotnet-aspnet
+  #   channel: '10.0'
+- name: deploy
+  type: boolean
+  default: true
+
+stages:
+- stage: Validate
+  variables:
+  - template: ../../variables/common.yml
+  jobs:
+  - job: Lint
+    pool:
+      vmImage: $(Meridian.VmImage)
+    steps:
+    - template: ../../steps/checkout.yml
+      parameters:
+        fetchDepth: 1
+    - ${{ each image in parameters.images }}:
+      - script: docker run --rm -i hadolint/hadolint:v2.12.0 hadolint --failure-threshold warning - < "${{ image.context }}/Dockerfile"
+        displayName: hadolint ${{ image.name }}
+  - template: ../../jobs/security-scan.yml
+    parameters:
+      scanIaC: false
+
+- ${{ if eq(parameters.deploy, true) }}:
+  - stage: Build
+    condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+    variables:
+    - template: ../../variables/common.yml
+    jobs:
+    - ${{ each image in parameters.images }}:
+      - job: Build_${{ replace(image.name, '-', '_') }}
+        displayName: Build ${{ image.name }}
+        pool:
+          vmImage: $(Meridian.VmImage)
+        steps:
+        - template: ../../steps/checkout.yml
+          parameters:
+            fetchDepth: 1
+        - template: ../../steps/container-build-push.yml
+          parameters:
+            repository: base/${{ image.name }}
+            context: ${{ image.context }}
+            dockerfile: ${{ image.context }}/Dockerfile
+        - template: ../../steps/container-scan.yml
+          parameters:
+            repository: base/${{ image.name }}
+
+  - stage: Promote
+    displayName: Promote channel tags
+    variables:
+    - template: ../../variables/common.yml
+    jobs:
+    - deployment: Promote
+      pool:
+        vmImage: $(Meridian.VmImage)
+      environment: shared
+      strategy:
+        runOnce:
+          deploy:
+            steps:
+            - download: none
+            - ${{ each image in parameters.images }}:
+              - task: AzureCLI@2
+                displayName: Tag base/${{ image.name }}:${{ image.channel }}
+                inputs:
+                  azureSubscription: sc-meridian-shared
+                  scriptType: bash
+                  scriptLocation: inlineScript
+                  inlineScript: |
+                    set -euo pipefail
+                    az acr import --name "$ACR_NAME" --force \
+                      --source "${ACR_NAME}.azurecr.io/base/${IMAGE}:${BUILD_NUMBER}" \
+                      --image "base/${IMAGE}:${CHANNEL}"
+                env:
+                  ACR_NAME: $(Meridian.AcrName)
+                  IMAGE: ${{ image.name }}
+                  CHANNEL: ${{ image.channel }}
+                  BUILD_NUMBER: $(Build.BuildNumber)

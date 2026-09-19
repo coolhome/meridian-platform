@@ -1,0 +1,18 @@
+# Compile-time allow-list for consumer-supplied preBuildSteps (azp-reference example 01).
+# Anything that is not a `task:` step, or a task outside the allow-list, produces a
+# template reference that cannot resolve, so the pipeline fails to compile with a name
+# that says why. `@` is replaced because a literal `@` in a template path is read as a
+# repository alias.
+parameters:
+- name: steps
+  type: stepList
+  default: []
+
+steps:
+- ${{ each step in parameters.steps }}:
+  - ${{ if not(step.task) }}:
+    - template: __governance-rejected-preBuildStep-must-be-a-task-step__.yml
+  - ${{ if and(step.task, notIn(step.task, 'DownloadSecureFile@1', 'Cache@2', 'UseDotNet@2', 'UseNode@1', 'NuGetAuthenticate@1', 'NpmAuthenticate@0', 'CopyFiles@2', 'ExtractFiles@1')) }}:
+    - template: __governance-rejected-preBuildStep-task-${{ replace(step.task, '@', '-') }}__.yml
+  - ${{ if and(step.task, in(step.task, 'DownloadSecureFile@1', 'Cache@2', 'UseDotNet@2', 'UseNode@1', 'NuGetAuthenticate@1', 'NpmAuthenticate@0', 'CopyFiles@2', 'ExtractFiles@1')) }}:
+    - ${{ step }}

@@ -1,0 +1,31 @@
+# PSRule for Azure configuration (run by pipeline-templates/steps/bicep-validate.yml).
+configuration:
+  AZURE_BICEP_FILE_EXPANSION: true
+  AZURE_BICEP_PARAMS_FILE_EXPANSION: true
+  AZURE_BICEP_FILE_EXPANSION_TIMEOUT: 30
+  AZURE_RESOURCE_ALLOWED_LOCATIONS:
+    - eastus2
+    - centralus
+
+include:
+  module:
+    - PSRule.Rules.Azure
+
+input:
+  pathIgnore:
+    - '*.md'
+    - '.github/'
+    - 'scripts/'
+    - 'pipelines/'
+
+rule:
+  exclude:
+    # Microsoft-hosted agents deploy from public IPs; private endpoints are a later phase (ADR 0006 follow-up).
+    - Azure.KeyVault.Firewall
+    - Azure.Storage.Firewall
+    - Azure.Cosmos.PublicAccess
+    - Azure.ACR.Firewall
+
+output:
+  culture:
+    - en-US

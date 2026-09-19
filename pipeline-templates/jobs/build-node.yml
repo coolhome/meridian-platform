@@ -1,0 +1,27 @@
+parameters:
+- name: node
+  type: object
+  default: {}
+- name: preBuildSteps
+  type: stepList
+  default: []
+
+jobs:
+- job: Build
+  displayName: Build, test, SBOM (Node)
+  pool:
+    vmImage: $(Meridian.VmImage)
+  steps:
+  - template: ../steps/checkout.yml
+  - template: ../steps/gitversion.yml
+  - template: ../steps/node-setup.yml
+    parameters:
+      version: ${{ coalesce(parameters.node.version, '24.x') }}
+      workingDirectory: ${{ coalesce(parameters.node.workingDirectory, '.') }}
+  - template: governance-prebuild-steps.yml
+    parameters:
+      steps: ${{ parameters.preBuildSteps }}
+  - template: ../steps/node-build-test.yml
+    parameters:
+      workingDirectory: ${{ coalesce(parameters.node.workingDirectory, '.') }}
+      outputDirectory: ${{ coalesce(parameters.node.outputDirectory, 'dist') }}

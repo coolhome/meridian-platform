@@ -1,0 +1,74 @@
+{
+  "$comment": "Teams own area paths; security groups gate approvals and required reviewers. Applied by tooling/Initialize-AzureDevOps.ps1.",
+  "areaPaths": [
+    "Platform",
+    "Platform\\Governance",
+    "Platform\\Pipelines",
+    "Platform\\Infrastructure",
+    "Platform\\Libraries",
+    "Platform\\Containers",
+    "Platform\\Observability",
+    "Services",
+    "Services\\Identity",
+    "Services\\Approvals",
+    "Services\\Approvals\\Worker",
+    "Services\\Experience",
+    "Services\\Experience\\BFF",
+    "Services\\Experience\\Web"
+  ],
+  "teams": [
+    {
+      "name": "Platform Engineering",
+      "description": "Owns governance, pipeline templates, shared infrastructure, libraries and container base images.",
+      "defaultAreaPath": "Platform",
+      "areaPaths": ["Platform"],
+      "includeSubAreas": true
+    },
+    {
+      "name": "Identity Team",
+      "description": "Owns identity-service and the Entra ID role mapping.",
+      "defaultAreaPath": "Services\\Identity",
+      "areaPaths": ["Services\\Identity"],
+      "includeSubAreas": true
+    },
+    {
+      "name": "Approvals Team",
+      "description": "Owns approval-service and worker-jobs.",
+      "defaultAreaPath": "Services\\Approvals",
+      "areaPaths": ["Services\\Approvals"],
+      "includeSubAreas": true
+    },
+    {
+      "name": "Experience Team",
+      "description": "Owns the SPA and the backend-for-frontend.",
+      "defaultAreaPath": "Services\\Experience",
+      "areaPaths": ["Services\\Experience"],
+      "includeSubAreas": true
+    },
+    {
+      "name": "SRE",
+      "description": "Owns observability, SLOs and production readiness.",
+      "defaultAreaPath": "Platform\\Observability",
+      "areaPaths": ["Platform\\Observability"],
+      "includeSubAreas": true
+    }
+  ],
+  "securityGroups": [
+    {
+      "name": "Release Managers",
+      "description": "Approve production deployments. Two approvals required, requester cannot approve."
+    },
+    {
+      "name": "QA Leads",
+      "description": "Approve promotion into the test environment."
+    },
+    {
+      "name": "Security Champions",
+      "description": "Required reviewers for auth, secrets, Dockerfiles and infrastructure changes."
+    },
+    {
+      "name": "Sync Automation",
+      "description": "Holds the identity used by the GitHub sync workflow. Only member allowed to bypass branch policies on mirrored repos."
+    }
+  ]
+}

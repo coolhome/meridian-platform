@@ -1,0 +1,138 @@
+# Governed pipeline for NuGet libraries (+ optional per-environment infra such as queues).
+parameters:
+- name: name
+  type: string
+- name: dotnet
+  type: object
+  default: {}
+- name: packProjects
+  type: string
+  default: src/**/*.csproj
+- name: feed
+  type: string
+  default: meridian
+- name: infra
+  type: object
+  default: {}
+- name: environments
+  type: object
+  default:
+  - dev
+  - test
+  - prod
+- name: preBuildSteps
+  type: stepList
+  default: []
+- name: deploy
+  type: boolean
+  default: true
+
+stages:
+- stage: Build
+  displayName: Build and pack
+  variables:
+  - template: ../../variables/common.yml
+  jobs:
+  - template: ../../jobs/build-dotnet.yml
+    parameters:
+      dotnet: ${{ parameters.dotnet }}
+      preBuildSteps: ${{ parameters.preBuildSteps }}
+      publishArtifact: false
+  - job: Pack
+    dependsOn: Build
+    pool:
+      vmImage: $(Meridian.VmImage)
+    steps:
+    - template: ../../steps/checkout.yml
+      parameters:
+        fetchDepth: 1
+    - template: ../../steps/dotnet-setup.yml
+      parameters:
+        sdkVersion: ${{ coalesce(parameters.dotnet.sdkVersion, '10.0.x') }}
+    - task: DotNetCoreCLI@2
+      displayName: dotnet pack
+      inputs:
+        command: pack
+        packagesToPack: ${{ parameters.packProjects }}
+        configuration: Release
+        versioningScheme: byEnvVar
+        versionEnvVar: PACKAGE_VERSION
+        packDirectory: $(Build.ArtifactStagingDirectory)/packages
+        includesymbols: true
+      env:
+        PACKAGE_VERSION: $(Build.BuildNumber)
+    - task: PublishPipelineArtifact@1
+      displayName: Publish packages
+      inputs:
+        targetPath: $(Build.ArtifactStagingDirectory)/packages
+        artifact: packages
+
+- stage: Scan
+  displayName: Security scan
+  dependsOn: []
+  variables:
+  - template: ../../variables/common.yml
+  jobs:
+  - template: ../../jobs/security-scan.yml
+
+- ${{ if eq(parameters.deploy, true) }}:
+  - stage: Publish
+    displayName: Publish to ${{ parameters.feed }}
+    dependsOn:
+    - Build
+    - Scan
+    condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+    variables:
+    - template: ../../variables/common.yml
+    jobs:
+    - deployment: Publish
+      pool:
+        vmImage: $(Meridian.VmImage)
+      environment: packages
+      strategy:
+        runOnce:
+          deploy:
+            steps:
+            - download: current
+              artifact: packages
+            - task: NuGetAuthenticate@1
+            - task: DotNetCoreCLI@2
+              displayName: dotnet nuget push
+              inputs:
+                command: push
+                packagesToPush: $(Pipeline.Workspace)/packages/*.nupkg
+                nuGetFeedType: internal
+                publishVstsFeed: ${{ parameters.feed }}
+
+  - ${{ if ne(coalesce(parameters.infra.templatePath, ''), '') }}:
+    - ${{ each env in parameters.environments }}:
+      - stage: Deploy_${{ env }}
+        displayName: Deploy infra ${{ env }}
+        condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+        variables:
+        - template: ../../variables/common.yml
+        - template: ../../variables/environment.yml
+          parameters:
+            environment: ${{ env }}
+        jobs:
+        - template: ../../jobs/deploy-bicep.yml
+          parameters:
+            environment: ${{ env }}
+            name: ${{ parameters.name }}
+            scope: resourceGroup
+            resourceGroup: ${{ replace(coalesce(parameters.infra.resourceGroupPattern, 'rg-mrd-{env}-platform'), '{env}', env) }}
+            templatePath: ${{ parameters.infra.templatePath }}
+            parametersFile: ${{ replace(coalesce(parameters.infra.parametersPattern, 'infra/params/{env}.bicepparam'), '{env}', env) }}
+
+  - ${{ if containsValue(parameters.environments, 'prod') }}:
+    - stage: Release
+      displayName: Tag release
+      condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+      variables:
+      - template: ../../variables/common.yml
+      jobs:
+      - job: Tag
+        pool:
+          vmImage: $(Meridian.VmImage)
+        steps:
+        - template: ../../steps/tag-release.yml

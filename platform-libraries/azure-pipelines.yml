@@ -1,0 +1,37 @@
+name: $(Date:yyyyMMdd)$(Rev:.r)
+
+trigger:
+  batch: true
+  branches:
+    include:
+    - main
+    - release/*
+  paths:
+    exclude:
+    - README.md
+
+resources:
+  repositories:
+  - repository: templates
+    type: git
+    name: Meridian/meridian-pipeline-templates
+    ref: refs/tags/v1.0.0
+
+variables:
+- name: Meridian.Component
+  value: platform-libraries
+
+extends:
+  template: pipelines/extends/library.yml@templates
+  parameters:
+    name: platform-libraries
+    packProjects: src/**/*.csproj
+    feed: meridian
+    infra:
+      templatePath: infra/queues.bicep
+      parametersPattern: infra/params/{env}.bicepparam
+      resourceGroupPattern: rg-mrd-{env}-data
+    environments:
+    - dev
+    - test
+    - prod

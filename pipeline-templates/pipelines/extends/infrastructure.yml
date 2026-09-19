@@ -1,0 +1,97 @@
+# Governed pipeline for Bicep repositories. Validate -> (per environment) WhatIf -> Deploy.
+# WhatIf is a plain job so its artifact exists before approvers are asked.
+parameters:
+- name: name
+  type: string
+- name: templatePath
+  type: string
+  default: bicep/main.bicep
+- name: scope
+  type: string
+  default: subscription
+  values:
+  - subscription
+  - resourceGroup
+- name: parametersPattern
+  type: string
+  default: bicep/params/{env}.bicepparam
+- name: resourceGroupPattern
+  type: string
+  default: ''
+- name: additionalParameters
+  type: string
+  default: ''
+- name: environments
+  type: object
+  default:
+  - shared
+  - dev
+  - test
+  - prod
+- name: psRuleBaseline
+  type: string
+  default: Azure.Default
+- name: deploy
+  type: boolean
+  default: true
+
+stages:
+- stage: Validate
+  displayName: Validate
+  variables:
+  - template: ../../variables/common.yml
+  jobs:
+  - job: Validate
+    pool:
+      vmImage: $(Meridian.VmImage)
+    steps:
+    - template: ../../steps/checkout.yml
+      parameters:
+        fetchDepth: 1
+    - template: ../../steps/bicep-validate.yml
+      parameters:
+        psRuleBaseline: ${{ parameters.psRuleBaseline }}
+  - template: ../../jobs/security-scan.yml
+    parameters:
+      scanIaC: true
+
+- ${{ if eq(parameters.deploy, true) }}:
+  - ${{ each env in parameters.environments }}:
+    - stage: WhatIf_${{ env }}
+      displayName: What-if ${{ env }}
+      condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+      variables:
+      - template: ../../variables/common.yml
+      - template: ../../variables/environment.yml
+        parameters:
+          environment: ${{ env }}
+      jobs:
+      - template: ../../jobs/whatif-bicep.yml
+        parameters:
+          environment: ${{ env }}
+          name: ${{ parameters.name }}
+          scope: ${{ parameters.scope }}
+          templatePath: ${{ parameters.templatePath }}
+          parametersFile: ${{ replace(parameters.parametersPattern, '{env}', env) }}
+          resourceGroup: ${{ replace(parameters.resourceGroupPattern, '{env}', env) }}
+          additionalParameters: ${{ parameters.additionalParameters }}
+    - stage: Deploy_${{ env }}
+      displayName: Deploy ${{ env }}
+      condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+      ${{ if eq(env, 'prod') }}:
+        lockBehavior: sequential
+      variables:
+      - template: ../../variables/common.yml
+      - template: ../../variables/environment.yml
+        parameters:
+          environment: ${{ env }}
+      jobs:
+      - template: ../../jobs/deploy-bicep.yml
+        parameters:
+          environment: ${{ env }}
+          name: ${{ parameters.name }}
+          scope: ${{ parameters.scope }}
+          templatePath: ${{ parameters.templatePath }}
+          parametersFile: ${{ replace(parameters.parametersPattern, '{env}', env) }}
+          resourceGroup: ${{ replace(parameters.resourceGroupPattern, '{env}', env) }}
+          additionalParameters: ${{ parameters.additionalParameters }}

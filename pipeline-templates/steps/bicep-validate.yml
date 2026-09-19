@@ -1,0 +1,43 @@
+# Build + lint every Bicep file and run PSRule for Azure against the compiled templates.
+parameters:
+- name: path
+  type: string
+  default: .
+- name: psRuleBaseline
+  type: string
+  default: Azure.Default
+
+steps:
+- script: |
+    set -euo pipefail
+    az bicep install
+    az bicep version
+    status=0
+    while IFS= read -r f; do
+      echo "== $f"
+      az bicep build --file "$f" --stdout > /dev/null || status=1
+    done < <(find "${SCAN_PATH}" -name '*.bicep' -not -path '*/node_modules/*')
+    while IFS= read -r f; do
+      echo "== $f"
+      az bicep build-params --file "$f" --stdout > /dev/null || status=1
+    done < <(find "${SCAN_PATH}" -name '*.bicepparam' -not -path '*/node_modules/*')
+    exit $status
+  displayName: bicep build + lint
+  env:
+    SCAN_PATH: ${{ parameters.path }}
+- pwsh: |
+    $ErrorActionPreference = 'Stop'
+    Install-Module PSRule.Rules.Azure -RequiredVersion 1.45.0 -Force -Scope CurrentUser -AllowClobber
+    Assert-PSRule -InputPath "$env:SCAN_PATH" -Module PSRule.Rules.Azure -Baseline "$env:BASELINE" -Format File -OutputFormat NUnit3 -OutputPath "$(Agent.TempDirectory)/TestResults/psrule.xml" -ErrorAction Stop
+  displayName: PSRule for Azure
+  env:
+    SCAN_PATH: ${{ parameters.path }}
+    BASELINE: ${{ parameters.psRuleBaseline }}
+- task: PublishTestResults@2
+  displayName: Publish PSRule results
+  condition: succeededOrFailed()
+  inputs:
+    testResultsFormat: NUnit
+    testResultsFiles: psrule.xml
+    searchFolder: $(Agent.TempDirectory)/TestResults
+    testRunTitle: PSRule for Azure

@@ -1,0 +1,26 @@
+# Included at STAGE scope by the extends templates (never at root: the consumer owns
+# the single root variables block).
+variables:
+- group: meridian-shared
+- name: Meridian.ResourcePrefix
+  value: mrd
+- name: Meridian.Registry
+  value: $(Meridian.AcrName).azurecr.io
+- name: Meridian.VmImage
+  value: ubuntu-24.04
+- name: DOTNET_CLI_TELEMETRY_OPTOUT
+  value: 'true'
+- name: DOTNET_NOLOGO
+  value: 'true'
+- name: DOTNET_SKIP_FIRST_TIME_EXPERIENCE
+  value: 'true'
+- name: NUGET_PACKAGES
+  value: $(Pipeline.Workspace)/.nuget/packages
+- name: npm_config_cache
+  value: $(Pipeline.Workspace)/.npm
+- name: TRIVY_VERSION
+  value: 0.65.0
+- name: GITLEAKS_VERSION
+  value: 8.28.0
+- name: GITVERSION_VERSION
+  value: 6.3.0

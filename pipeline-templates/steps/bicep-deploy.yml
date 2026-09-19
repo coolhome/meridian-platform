@@ -1,0 +1,78 @@
+# What-if or deploy a Bicep template at subscription or resource-group scope.
+parameters:
+- name: serviceConnection
+  type: string
+- name: scope
+  type: string
+  default: resourceGroup
+  values:
+  - subscription
+  - resourceGroup
+- name: templatePath
+  type: string
+- name: parametersFile
+  type: string
+  default: ''
+- name: additionalParameters
+  type: string
+  default: ''
+- name: resourceGroup
+  type: string
+  default: ''
+- name: location
+  type: string
+  default: $(Meridian.Location)
+- name: deploymentName
+  type: string
+- name: mode
+  type: string
+  default: deploy
+  values:
+  - whatIf
+  - deploy
+
+steps:
+- task: AzureCLI@2
+  displayName: bicep ${{ parameters.mode }} ${{ parameters.templatePath }}
+  inputs:
+    azureSubscription: ${{ parameters.serviceConnection }}
+    scriptType: bash
+    scriptLocation: inlineScript
+    inlineScript: |
+      set -euo pipefail
+      args=(--name "$DEPLOYMENT_NAME" --template-file "$TEMPLATE_PATH")
+      if [ -n "$PARAMETERS_FILE" ]; then args+=(--parameters "$PARAMETERS_FILE"); fi
+      if [ -n "$ADDITIONAL_PARAMETERS" ]; then
+        # shellcheck disable=SC2206
+        extra=($ADDITIONAL_PARAMETERS)
+        args+=(--parameters "${extra[@]}")
+      fi
+      if [ "$SCOPE" = "subscription" ]; then
+        cmd=(az deployment sub create --location "$LOCATION")
+      else
+        cmd=(az deployment group create --resource-group "$RESOURCE_GROUP")
+      fi
+      if [ "$MODE" = "whatIf" ]; then
+        mkdir -p "$(Build.ArtifactStagingDirectory)/what-if"
+        "${cmd[@]}" "${args[@]}" --what-if --no-pretty-print --what-if-exclude-change-types NoChange Ignore \
+          | tee "$(Build.ArtifactStagingDirectory)/what-if/${DEPLOYMENT_NAME}.json"
+      else
+        "${cmd[@]}" "${args[@]}" --output json > "$(Agent.TempDirectory)/${DEPLOYMENT_NAME}.json"
+        jq -r '.properties.outputs // {} | to_entries[] | "##vso[task.setvariable variable=out_\(.key);isOutput=true]\(.value.value|tostring)"' "$(Agent.TempDirectory)/${DEPLOYMENT_NAME}.json"
+      fi
+  name: bicep_${{ replace(parameters.mode, '-', '_') }}
+  env:
+    SCOPE: ${{ parameters.scope }}
+    TEMPLATE_PATH: ${{ parameters.templatePath }}
+    PARAMETERS_FILE: ${{ parameters.parametersFile }}
+    ADDITIONAL_PARAMETERS: ${{ parameters.additionalParameters }}
+    RESOURCE_GROUP: ${{ parameters.resourceGroup }}
+    LOCATION: ${{ parameters.location }}
+    DEPLOYMENT_NAME: ${{ parameters.deploymentName }}
+    MODE: ${{ parameters.mode }}
+- ${{ if eq(parameters.mode, 'whatIf') }}:
+  - task: PublishPipelineArtifact@1
+    displayName: Publish what-if
+    inputs:
+      targetPath: $(Build.ArtifactStagingDirectory)/what-if
+      artifact: what-if-${{ parameters.deploymentName }}

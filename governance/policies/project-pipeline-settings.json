@@ -1,0 +1,22 @@
+{
+  "$comment": "PATCH body for {org}/{project}/_apis/build/generalsettings?api-version=7.1. Values follow the azp-reference project-pipeline-settings recommendations. Organization-level settings can lock these; a toggle that shows disabled here may still be enforced org-wide.",
+  "enforceJobAuthScope": true,
+  "enforceJobAuthScopeForReleases": true,
+  "enforceJobAuthScopeForForks": true,
+  "enforceReferencedRepoScopedToken": true,
+  "enforceReferencedGitHubRepoScopedToken": true,
+  "enforceSettableVar": true,
+  "enforceNoAccessToSecretsFromForks": true,
+  "forkProtectionEnabled": true,
+  "buildsEnabledForForks": false,
+  "isCommentRequiredForPullRequest": true,
+  "requireCommentsForNonTeamMembersOnly": false,
+  "requireCommentsForNonTeamMemberAndNonContributors": true,
+  "disableClassicPipelineCreation": true,
+  "disableClassicBuildPipelineCreation": true,
+  "disableClassicReleasePipelineCreation": true,
+  "disableImpliedYAMLCiTrigger": true,
+  "enableShellTasksArgsSanitizing": true,
+  "statusBadgesArePrivate": true,
+  "publishPipelineMetadata": true
+}

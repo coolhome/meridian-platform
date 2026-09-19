@@ -1,0 +1,214 @@
+# Deploys a service's Container App by running the service-owned infra/main.bicep with
+# the new image tag.
+#   dev/test, and prod with prodStrategy=runOnce: runOnce (single revision, 100% traffic).
+#   prod with prodStrategy=canary: canary with 10/50 waves, smoke between waves,
+#   traffic rollback on failure. Requires ingress (traffic weights) and multiple-revision mode.
+# smokePath='' disables HTTP smoke tests (workers without ingress).
+parameters:
+- name: environment
+  type: string
+- name: serviceName
+  type: string
+- name: infra
+  type: object
+  default: {}
+- name: smokePath
+  type: string
+  default: /health/ready
+- name: prodStrategy
+  type: string
+  default: canary
+
+jobs:
+- deployment: Deploy
+  displayName: Deploy ${{ parameters.serviceName }} to ${{ parameters.environment }}
+  pool:
+    vmImage: $(Meridian.VmImage)
+  environment: ${{ parameters.environment }}
+  variables:
+  - name: Meridian.ContainerApp
+    value: ca-mrd-${{ parameters.environment }}-${{ parameters.serviceName }}
+  - name: Meridian.ImageRepository
+    value: services/${{ parameters.serviceName }}
+  - name: Meridian.InfraTemplate
+    value: ${{ coalesce(parameters.infra.templatePath, 'infra/main.bicep') }}
+  - name: Meridian.InfraParameters
+    value: ${{ replace(coalesce(parameters.infra.parametersPattern, 'infra/params/{env}.bicepparam'), '{env}', parameters.environment) }}
+  strategy:
+    ${{ if or(ne(parameters.environment, 'prod'), ne(parameters.prodStrategy, 'canary')) }}:
+      runOnce:
+        deploy:
+          steps:
+          - download: none
+          - template: ../steps/checkout.yml
+            parameters:
+              fetchDepth: 1
+          - template: ../steps/bicep-deploy.yml
+            parameters:
+              serviceConnection: $(Meridian.ServiceConnection)
+              scope: resourceGroup
+              resourceGroup: $(Meridian.ResourceGroup.Apps)
+              templatePath: $(Meridian.InfraTemplate)
+              parametersFile: $(Meridian.InfraParameters)
+              additionalParameters: imageTag=$(Build.BuildNumber) revisionSuffix=r$(Build.BuildId) latestRevisionWeight=100 uniqueSuffix=$(UniqueSuffix)
+              deploymentName: ${{ parameters.serviceName }}-$(Build.BuildId)
+          - ${{ if ne(parameters.smokePath, '') }}:
+            - template: ../steps/smoke-test.yml
+              parameters:
+                url: https://$(bicep_deploy.out_fqdn)${{ parameters.smokePath }}
+          - ${{ if eq(parameters.smokePath, '') }}:
+            - task: AzureCLI@2
+              displayName: Wait for healthy replicas
+              inputs:
+                azureSubscription: $(Meridian.ServiceConnection)
+                scriptType: bash
+                scriptLocation: inlineScript
+                inlineScript: |
+                  set -euo pipefail
+                  for i in $(seq 1 30); do
+                    state=$(az containerapp revision show -g "$RG" -n "$APP" --revision "${APP}--r${BUILD_ID}" --query properties.healthState -o tsv 2>/dev/null || echo Unknown)
+                    echo "revision health: $state"
+                    [ "$state" = "Healthy" ] && exit 0
+                    sleep 10
+                  done
+                  echo "##vso[task.logissue type=error]revision did not become healthy"
+                  exit 1
+              env:
+                RG: $(Meridian.ResourceGroup.Apps)
+                APP: $(Meridian.ContainerApp)
+                BUILD_ID: $(Build.BuildId)
+    ${{ if and(eq(parameters.environment, 'prod'), eq(parameters.prodStrategy, 'canary')) }}:
+      canary:
+        increments:
+        - 10
+        - 50
+        preDeploy:
+          steps:
+          - download: none
+          - template: ../steps/checkout.yml
+            parameters:
+              fetchDepth: 1
+          - task: AzureCLI@2
+            displayName: Capture current revision
+            name: current
+            inputs:
+              azureSubscription: $(Meridian.ServiceConnection)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -euo pipefail
+                prev=$(az containerapp revision list -g "$RG" -n "$APP" --query "[?properties.active && properties.trafficWeight>\`0\`].name | [0]" -o tsv 2>/dev/null || true)
+                echo "previous revision: ${prev:-<none>}"
+                echo "##vso[task.setvariable variable=previousRevision]${prev}"
+            env:
+              RG: $(Meridian.ResourceGroup.Apps)
+              APP: $(Meridian.ContainerApp)
+          - template: ../steps/bicep-deploy.yml
+            parameters:
+              serviceConnection: $(Meridian.ServiceConnection)
+              scope: resourceGroup
+              resourceGroup: $(Meridian.ResourceGroup.Apps)
+              templatePath: $(Meridian.InfraTemplate)
+              parametersFile: $(Meridian.InfraParameters)
+              additionalParameters: imageTag=$(Build.BuildNumber) revisionSuffix=r$(Build.BuildId) latestRevisionWeight=0 previousRevisionName=$(previousRevision) uniqueSuffix=$(UniqueSuffix)
+              deploymentName: ${{ parameters.serviceName }}-$(Build.BuildId)
+        deploy:
+          steps:
+          - download: none
+          - task: AzureCLI@2
+            displayName: Wait for revision r$(Build.BuildId)
+            inputs:
+              azureSubscription: $(Meridian.ServiceConnection)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -euo pipefail
+                rev="${APP}--r${BUILD_ID}"
+                for i in $(seq 1 30); do
+                  state=$(az containerapp revision show -g "$RG" -n "$APP" --revision "$rev" --query properties.healthState -o tsv 2>/dev/null || echo Unknown)
+                  echo "revision $rev health: $state"
+                  [ "$state" = "Healthy" ] && exit 0
+                  sleep 10
+                done
+                exit 1
+            env:
+              RG: $(Meridian.ResourceGroup.Apps)
+              APP: $(Meridian.ContainerApp)
+              BUILD_ID: $(Build.BuildId)
+        routeTraffic:
+          steps:
+          - download: none
+          - task: AzureCLI@2
+            displayName: Route $(strategy.increment)% to r$(Build.BuildId)
+            inputs:
+              azureSubscription: $(Meridian.ServiceConnection)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -euo pipefail
+                rev="${APP}--r${BUILD_ID}"
+                rest=$((100 - INCREMENT))
+                if [ -n "$PREVIOUS" ]; then
+                  az containerapp ingress traffic set -g "$RG" -n "$APP" --revision-weight "$rev=$INCREMENT" "$PREVIOUS=$rest"
+                else
+                  az containerapp ingress traffic set -g "$RG" -n "$APP" --revision-weight "$rev=100"
+                fi
+            env:
+              RG: $(Meridian.ResourceGroup.Apps)
+              APP: $(Meridian.ContainerApp)
+              BUILD_ID: $(Build.BuildId)
+              INCREMENT: $(strategy.increment)
+              PREVIOUS: $(previousRevision)
+        postRouteTraffic:
+          steps:
+          - download: none
+          - ${{ if ne(parameters.smokePath, '') }}:
+            - template: ../steps/smoke-test.yml
+              parameters:
+                url: https://$(bicep_deploy.out_revisionFqdn)${{ parameters.smokePath }}
+          - script: echo "wave $(strategy.increment) healthy; soaking 60s" && sleep 60
+            displayName: Soak
+        on:
+          failure:
+            steps:
+            - download: none
+            - task: AzureCLI@2
+              displayName: Roll back traffic
+              inputs:
+                azureSubscription: $(Meridian.ServiceConnection)
+                scriptType: bash
+                scriptLocation: inlineScript
+                inlineScript: |
+                  set -euo pipefail
+                  rev="${APP}--r${BUILD_ID}"
+                  if [ -n "$PREVIOUS" ]; then
+                    az containerapp ingress traffic set -g "$RG" -n "$APP" --revision-weight "$PREVIOUS=100" "$rev=0"
+                    az containerapp revision deactivate -g "$RG" -n "$APP" --revision "$rev"
+                  fi
+                  echo "##vso[task.logissue type=error]canary rolled back to ${PREVIOUS:-<none>}"
+              env:
+                RG: $(Meridian.ResourceGroup.Apps)
+                APP: $(Meridian.ContainerApp)
+                BUILD_ID: $(Build.BuildId)
+                PREVIOUS: $(previousRevision)
+          success:
+            steps:
+            - download: none
+            - task: AzureCLI@2
+              displayName: Promote r$(Build.BuildId) to 100%
+              inputs:
+                azureSubscription: $(Meridian.ServiceConnection)
+                scriptType: bash
+                scriptLocation: inlineScript
+                inlineScript: |
+                  set -euo pipefail
+                  rev="${APP}--r${BUILD_ID}"
+                  az containerapp ingress traffic set -g "$RG" -n "$APP" --revision-weight "$rev=100"
+                  if [ -n "$PREVIOUS" ] && [ "$PREVIOUS" != "$rev" ]; then
+                    az containerapp revision deactivate -g "$RG" -n "$APP" --revision "$PREVIOUS"
+                  fi
+              env:
+                RG: $(Meridian.ResourceGroup.Apps)
+                APP: $(Meridian.ContainerApp)
+                BUILD_ID: $(Build.BuildId)
+                PREVIOUS: $(previousRevision)

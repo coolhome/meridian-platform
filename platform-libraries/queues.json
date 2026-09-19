@@ -1,0 +1,26 @@
+{
+  "$comment": "Single source of truth for Storage Queue names. Consumed by Meridian.Messaging.Contracts.QueueNames (kept in sync by a test) and by infra/queues.bicep, which also creates <name>-poison for each.",
+  "queues": [
+    {
+      "name": "approval-requested",
+      "messageType": "meridian.approval.requested",
+      "producer": "approval-service",
+      "consumers": ["worker-jobs"],
+      "description": "A new approval request that needs approver notification and escalation tracking."
+    },
+    {
+      "name": "approval-decided",
+      "messageType": "meridian.approval.decided",
+      "producer": "approval-service",
+      "consumers": ["worker-jobs"],
+      "description": "An approver approved or rejected a request."
+    },
+    {
+      "name": "approval-audit",
+      "messageType": "meridian.approval.audit",
+      "producer": "worker-jobs",
+      "consumers": [],
+      "description": "Append-only audit trail produced by the worker; drained by a future reporting job."
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "images": [
+    { "name": "dotnet-aspnet", "context": "base-images/dotnet-aspnet", "channel": "10.0", "upstream": "mcr.microsoft.com/dotnet/aspnet:10.0-noble-chiseled" },
+    { "name": "dotnet-runtime", "context": "base-images/dotnet-runtime", "channel": "10.0", "upstream": "mcr.microsoft.com/dotnet/runtime:10.0-noble-chiseled" },
+    { "name": "build-tools", "context": "base-images/build-tools", "channel": "10.0", "upstream": "mcr.microsoft.com/dotnet/sdk:10.0-noble" }
+  ]
+}

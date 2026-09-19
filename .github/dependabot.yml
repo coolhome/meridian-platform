@@ -1,0 +1,41 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: nuget
+    directory: /platform-libraries
+    schedule:
+      interval: weekly
+    groups:
+      nuget:
+        patterns: ["*"]
+  - package-ecosystem: nuget
+    directory: /identity-service
+    schedule:
+      interval: weekly
+  - package-ecosystem: nuget
+    directory: /approval-service
+    schedule:
+      interval: weekly
+  - package-ecosystem: nuget
+    directory: /app-backend
+    schedule:
+      interval: weekly
+  - package-ecosystem: nuget
+    directory: /worker-jobs
+    schedule:
+      interval: weekly
+  - package-ecosystem: npm
+    directory: /app-frontend
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker
+    directory: /containers/base-images/dotnet-aspnet
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker
+    directory: /containers/base-images/dotnet-runtime
+    schedule:
+      interval: weekly

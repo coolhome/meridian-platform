@@ -1,0 +1,65 @@
+name: Sync to Azure Repos
+
+on:
+  push:
+    branches: [main, "release/**"]
+  workflow_dispatch:
+    inputs:
+      folders:
+        description: Comma-separated folders (empty = detect from last push, "all" = everything)
+        required: false
+        default: ""
+      force:
+        description: Force-push mirrors (only after a deliberate history rewrite, see ADR 0001)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  AZDO_PAT: ${{ secrets.AZDO_PAT }}
+  MERIDIAN_ADO_ORG_URL: ${{ vars.MERIDIAN_ADO_ORG_URL }}
+  MERIDIAN_ADO_PROJECT: ${{ vars.MERIDIAN_ADO_PROJECT }}
+
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Changed folders
+        id: changed
+        shell: pwsh
+        run: |
+          $inputFolders = '${{ inputs.folders }}'
+          if ($inputFolders -eq 'all') { ./tooling/Get-ChangedFolders.ps1 -All }
+          elseif ($inputFolders) { $list = $inputFolders.Split(',') | ForEach-Object { $_.Trim() }; Add-Content $env:GITHUB_OUTPUT "folders=$(ConvertTo-Json @($list) -Compress)"; Add-Content $env:GITHUB_OUTPUT 'any=true'; Add-Content $env:GITHUB_OUTPUT 'governance=true' }
+          else { ./tooling/Get-ChangedFolders.ps1 -Base '${{ github.event.before }}' -Head '${{ github.sha }}' }
+      - name: Boundaries
+        if: steps.changed.outputs.any == 'true'
+        shell: pwsh
+        run: ./tooling/Test-RepoBoundaries.ps1
+      - name: Mirror folders
+        if: steps.changed.outputs.any == 'true'
+        shell: pwsh
+        run: |
+          $folders = '${{ steps.changed.outputs.folders }}' | ConvertFrom-Json
+          $branch = '${{ github.ref_name }}'
+          ./tooling/Sync-ToAzureRepos.ps1 -Folders $folders -Branches $branch -Force:$${{ inputs.force || false }}
+      - name: Pipelines and policies
+        if: steps.changed.outputs.any == 'true' && github.ref == 'refs/heads/main'
+        shell: pwsh
+        run: |
+          $folders = '${{ steps.changed.outputs.folders }}' | ConvertFrom-Json
+          ./tooling/New-AdoPipelines.ps1 -Folders $folders
+          ./tooling/Set-AdoBranchPolicies.ps1 -Folders $folders
+      - name: Re-apply environment checks when governance changed
+        if: steps.changed.outputs.governance == 'true' && github.ref == 'refs/heads/main'
+        shell: pwsh
+        run: ./tooling/Initialize-AzureDevOps.ps1 -SkipServiceConnections

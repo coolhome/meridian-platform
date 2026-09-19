@@ -1,0 +1,81 @@
+# CI for the templates repository itself.
+# Lints YAML and compiles every consumer pipeline against this commit using the
+# pipelines preview API, so a template change is proven against real consumers
+# before a tag is cut.
+trigger:
+  batch: true
+  branches:
+    include:
+    - main
+    - release/*
+  paths:
+    exclude:
+    - README.md
+
+variables:
+- name: DOTNET_NOLOGO
+  value: 'true'
+
+stages:
+- stage: Validate
+  jobs:
+  - job: Lint
+    pool:
+      vmImage: ubuntu-24.04
+    steps:
+    - checkout: self
+      persistCredentials: false
+      fetchDepth: 1
+    - script: |
+        set -euo pipefail
+        pipx install yamllint==1.35.1
+        yamllint -c .yamllint.yml .
+      displayName: yamllint
+    - script: |
+        set -euo pipefail
+        # Every extends entry point must exist and be listed in the required-template check.
+        for f in service infrastructure library container-images; do
+          test -f "pipelines/extends/$f.yml" || { echo "##vso[task.logissue type=error]missing pipelines/extends/$f.yml"; exit 1; }
+        done
+      displayName: Entry points present
+
+  - job: CompileConsumers
+    displayName: Compile consumers against this commit
+    dependsOn: Lint
+    pool:
+      vmImage: ubuntu-24.04
+    steps:
+    - checkout: self
+      persistCredentials: false
+      fetchDepth: 1
+    - pwsh: |
+        $ErrorActionPreference = 'Stop'
+        $org = "$(System.CollectionUri)".TrimEnd('/')
+        $project = "$(System.TeamProject)"
+        $headers = @{
+          Authorization = "Bearer $env:SYSTEM_ACCESSTOKEN"
+          'X-TFS-FedAuthRedirect' = 'Suppress'
+          'Content-Type' = 'application/json'
+        }
+        $consumers = (Get-Content consumers.json -Raw | ConvertFrom-Json).pipelines
+        $failed = 0
+        foreach ($name in $consumers) {
+          $def = Invoke-RestMethod -Headers $headers -Uri "$org/$project/_apis/build/definitions?name=$name&api-version=7.1"
+          if ($def.count -eq 0) { Write-Host "##vso[task.logissue type=warning]$name not found; skipped"; continue }
+          $id = $def.value[0].id
+          $body = @{
+            previewRun = $true
+            resources = @{ repositories = @{ templates = @{ refName = "$(Build.SourceBranch)" } } }
+          } | ConvertTo-Json -Depth 6
+          try {
+            $null = Invoke-RestMethod -Method Post -Headers $headers -Uri "$org/$project/_apis/pipelines/$id/preview?api-version=7.1" -Body $body
+            Write-Host "OK   $name"
+          } catch {
+            $failed++
+            Write-Host "##vso[task.logissue type=error]$name failed to compile: $($_.ErrorDetails.Message)"
+          }
+        }
+        if ($failed -gt 0) { exit 1 }
+      displayName: Preview-compile consumers
+      env:
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)

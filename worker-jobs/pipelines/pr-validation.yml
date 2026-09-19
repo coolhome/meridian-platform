@@ -1,0 +1,22 @@
+trigger: none
+
+resources:
+  repositories:
+  - repository: templates
+    type: git
+    name: Meridian/meridian-pipeline-templates
+    ref: refs/tags/v1.0.0
+
+variables:
+- name: Meridian.Component
+  value: worker-jobs
+
+extends:
+  template: pipelines/extends/service.yml@templates
+  parameters:
+    serviceName: worker-jobs
+    kind: dotnet-worker
+    deploy: false
+    dotnet:
+      publishProject: src/Meridian.Worker/Meridian.Worker.csproj
+      lockedMode: false

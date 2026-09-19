@@ -1,0 +1,12 @@
+// Time between ApprovalRequested being published and the worker handling it.
+let published = customEvents
+    | where name == "EventPublished" and tostring(customDimensions.messageType) == "meridian.approval.requested"
+    | project publishedAt = timestamp, messageId = tostring(customDimensions.messageId);
+let handled = customEvents
+    | where name == "MessageHandled" and tostring(customDimensions.messageType) == "meridian.approval.requested"
+    | project handledAt = timestamp, messageId = tostring(customDimensions.messageId), dequeueCount = toint(customDimensions.dequeueCount);
+published
+| join kind=inner handled on messageId
+| extend lagSeconds = datetime_diff("second", handledAt, publishedAt)
+| summarize p50 = percentile(lagSeconds, 50), p95 = percentile(lagSeconds, 95), retried = countif(dequeueCount > 1), n = count() by bin(publishedAt, 15m)
+| order by publishedAt desc

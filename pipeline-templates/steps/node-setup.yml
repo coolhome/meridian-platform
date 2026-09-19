@@ -1,0 +1,24 @@
+parameters:
+- name: version
+  type: string
+  default: 24.x
+- name: workingDirectory
+  type: string
+  default: .
+
+steps:
+- task: UseNode@1
+  displayName: Use Node ${{ parameters.version }}
+  inputs:
+    version: ${{ parameters.version }}
+- task: Cache@2
+  displayName: Cache npm
+  inputs:
+    key: '"npm" | "$(Agent.OS)" | ${{ parameters.workingDirectory }}/package-lock.json'
+    restoreKeys: |
+      "npm" | "$(Agent.OS)"
+    path: $(npm_config_cache)
+- task: NpmAuthenticate@0
+  displayName: Authenticate npm to Azure Artifacts
+  inputs:
+    workingFile: ${{ parameters.workingDirectory }}/.npmrc

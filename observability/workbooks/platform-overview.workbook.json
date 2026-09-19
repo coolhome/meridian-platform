@@ -1,0 +1,74 @@
+{
+  "version": "Notebook/1.0",
+  "items": [
+    {
+      "type": 1,
+      "content": {
+        "json": "## Meridian platform overview\nRequests, failures and latency per service (cloud_RoleName), plus worker queue lag."
+      },
+      "name": "title"
+    },
+    {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "parameters": [
+          {
+            "id": "timeRange",
+            "version": "KqlParameterItem/1.0",
+            "name": "TimeRange",
+            "type": 4,
+            "value": { "durationMs": 3600000 },
+            "typeSettings": { "selectableValues": [ { "durationMs": 900000 }, { "durationMs": 3600000 }, { "durationMs": 86400000 } ] }
+          }
+        ],
+        "style": "pills"
+      },
+      "name": "parameters"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "requests\n| summarize total = count(), failed = countif(success == false), p95 = percentile(duration, 95) by cloud_RoleName\n| extend failedPercent = round(100.0 * failed / total, 2)\n| order by total desc",
+        "size": 0,
+        "title": "Requests by service",
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table"
+      },
+      "name": "requests-by-service"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "requests\n| summarize failed = countif(success == false) by bin(timestamp, 5m), cloud_RoleName\n| render timechart",
+        "size": 0,
+        "title": "Failed requests over time",
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "timechart"
+      },
+      "name": "failed-over-time"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "customMetrics\n| where name == \"meridian.queue.approximate_length\"\n| summarize avg(value) by bin(timestamp, 5m), tostring(customDimensions.queue)\n| render timechart",
+        "size": 0,
+        "title": "Queue depth (worker-jobs metric)",
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "timechart"
+      },
+      "name": "queue-depth"
+    }
+  ],
+  "fallbackResourceIds": [],
+  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
+}

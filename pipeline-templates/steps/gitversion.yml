@@ -1,0 +1,19 @@
+# Semantic version from git history. Sets GitVersion.* variables in the job and
+# rewrites the build number so downstream stages can use $(Build.BuildNumber) as the
+# version / image tag without cross-stage output plumbing.
+steps:
+- script: |
+    set -euo pipefail
+    dotnet tool install --global GitVersion.Tool --version "$GITVERSION_VERSION"
+    export PATH="$PATH:$HOME/.dotnet/tools"
+    dotnet-gitversion /output buildserver /nofetch
+  displayName: GitVersion
+  env:
+    GITVERSION_VERSION: $(GITVERSION_VERSION)
+- script: |
+    echo "##vso[build.updatebuildnumber]$(GitVersion.SemVer)"
+    echo "##vso[build.addbuildtag]v$(GitVersion.SemVer)"
+    echo "##vso[task.setvariable variable=semVer;isOutput=true]$(GitVersion.SemVer)"
+    echo "##vso[task.setvariable variable=shortSha;isOutput=true]$(GitVersion.ShortSha)"
+  name: version
+  displayName: Publish version as build number

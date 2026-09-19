@@ -1,0 +1,21 @@
+parameters:
+- name: projects
+  type: string
+  default: src/**/*.csproj
+
+steps:
+- script: |
+    set -euo pipefail
+    dotnet tool install --global CycloneDX --version 5.3.1
+    export PATH="$PATH:$HOME/.dotnet/tools"
+    mkdir -p "$(Build.ArtifactStagingDirectory)/sbom"
+    for proj in $(find src -name '*.csproj'); do
+      name=$(basename "$proj" .csproj)
+      dotnet-CycloneDX "$proj" --output "$(Build.ArtifactStagingDirectory)/sbom" --filename "$name.cdx.json" --json --disable-github-licenses
+    done
+  displayName: SBOM (CycloneDX)
+- task: PublishPipelineArtifact@1
+  displayName: Publish SBOM
+  inputs:
+    targetPath: $(Build.ArtifactStagingDirectory)/sbom
+    artifact: sbom

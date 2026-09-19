@@ -1,0 +1,64 @@
+name: $(Date:yyyyMMdd)$(Rev:.r)
+
+trigger:
+  batch: true
+  branches:
+    include:
+    - main
+    - release/*
+  paths:
+    exclude:
+    - README.md
+
+resources:
+  repositories:
+  - repository: templates
+    type: git
+    name: Meridian/meridian-pipeline-templates
+    ref: refs/tags/v1.0.0
+  pipelines:
+  - pipeline: platformLibraries
+    source: platform-libraries-cicd
+    trigger:
+      branches:
+        include:
+        - main
+      stages:
+      - Publish
+  containers:
+  - container: baseImage
+    type: acr
+    azureSubscription: sc-meridian-shared
+    resourceGroup: rg-mrd-shared-platform
+    registry: acrmrdshared
+    repository: base/dotnet-aspnet
+    trigger:
+      tags:
+        include:
+        - '10.0'
+
+variables:
+- name: Meridian.Component
+  value: worker-jobs
+
+extends:
+  template: pipelines/extends/service.yml@templates
+  parameters:
+    serviceName: worker-jobs
+    kind: dotnet-worker
+    dotnet:
+      sdkVersion: 10.0.x
+      publishProject: src/Meridian.Worker/Meridian.Worker.csproj
+      lockedMode: false
+    container:
+      baseImage: base/dotnet-aspnet:10.0
+    infra:
+      templatePath: infra/main.bicep
+      parametersPattern: infra/params/{env}.bicepparam
+    # No ingress: nothing to smoke over HTTP and no traffic to shift, so prod uses runOnce.
+    smokePath: ''
+    prodStrategy: runOnce
+    environments:
+    - dev
+    - test
+    - prod

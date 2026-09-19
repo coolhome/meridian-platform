@@ -1,0 +1,15 @@
+parameters:
+- name: scanIaC
+  type: boolean
+  default: true
+
+jobs:
+- job: Scan
+  displayName: Secrets, dependencies, IaC
+  pool:
+    vmImage: $(Meridian.VmImage)
+  steps:
+  - template: ../steps/checkout.yml
+  - template: ../steps/security-scan.yml
+    parameters:
+      scanIaC: ${{ parameters.scanIaC }}

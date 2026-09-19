@@ -1,0 +1,27 @@
+trigger: none
+
+resources:
+  repositories:
+  - repository: templates
+    type: git
+    name: Meridian/meridian-pipeline-templates
+    ref: refs/tags/v1.0.0
+
+variables:
+- name: Meridian.Component
+  value: containers
+
+extends:
+  template: pipelines/extends/container-images.yml@templates
+  parameters:
+    deploy: false
+    images:
+    - name: dotnet-aspnet
+      context: base-images/dotnet-aspnet
+      channel: '10.0'
+    - name: dotnet-runtime
+      context: base-images/dotnet-runtime
+      channel: '10.0'
+    - name: build-tools
+      context: base-images/build-tools
+      channel: '10.0'

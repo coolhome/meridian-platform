@@ -1,0 +1,37 @@
+name: $(Date:yyyyMMdd)$(Rev:.r)
+
+trigger:
+  batch: true
+  branches:
+    include:
+    - main
+    - release/*
+  paths:
+    exclude:
+    - README.md
+    - kql/*
+    - slo/*
+
+resources:
+  repositories:
+  - repository: templates
+    type: git
+    name: Meridian/meridian-pipeline-templates
+    ref: refs/tags/v1.0.0
+
+variables:
+- name: Meridian.Component
+  value: observability
+
+extends:
+  template: pipelines/extends/infrastructure.yml@templates
+  parameters:
+    name: observability
+    scope: resourceGroup
+    resourceGroupPattern: rg-mrd-{env}-platform
+    templatePath: alerts/main.bicep
+    parametersPattern: alerts/params/{env}.bicepparam
+    environments:
+    - dev
+    - test
+    - prod

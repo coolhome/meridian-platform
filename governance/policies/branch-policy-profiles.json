@@ -1,0 +1,190 @@
+{
+  "$comment": "Branch and repository policies as code. tooling/Set-AdoBranchPolicies.ps1 applies the profile named in repos.manifest.json to refs/heads/main and refs/heads/release/* of each mirrored repo. Policy type ids are resolved at runtime by display name (az repos policy type list); the ids below are documented fallbacks.",
+  "policyTypeFallbacks": {
+    "Minimum number of reviewers": "fa4e907d-c16b-4a4c-9dfa-4906e5d171dd",
+    "Work item linking": "40e92b44-2fe1-4dd6-b3d8-74a9c21d0c6e",
+    "Comment requirements": "c6a1889d-b943-4856-b76f-9e46bb6b0df2",
+    "Require a merge strategy": "fa4e907d-c16b-4a4c-9dfa-4916e5d171ab",
+    "Build": "0609b952-1397-4640-95ec-e00a01b2c241",
+    "Status": "cbdc66da-9728-4af8-aada-9a5a32e4a226",
+    "Required reviewers": "fd2167ab-b0be-447a-8ec8-39368250530e",
+    "File size restriction": "2e26e725-8201-4edd-8bf5-978563c34a80",
+    "Path Length restriction": "001a79cf-fda1-4c4e-9e7c-bac40ee5ead8",
+    "Reserved names restriction": "db2b9b4c-180d-4529-9701-01541d19f36b",
+    "Git repository settings": "7ed39669-655c-494e-b4a0-a08b4da0fcce",
+    "File name restriction": "51c78909-e838-41a2-9496-c647091e3c61",
+    "Commit author email validation": "77ed4bd3-b063-4689-934a-175e4de0a78f"
+  },
+  "branches": ["main", "release/*"],
+  "repositorySettings": {
+    "$comment": "Applied once per repository (no branch scope).",
+    "maximumFileSizeMB": 10,
+    "maximumPathLength": 248,
+    "reservedNames": true,
+    "enforceConsistentCase": true,
+    "blockedFilePatterns": ["*.pfx", "*.p12", "*.pem", "*.key", "*.jks", "*.publishsettings", "appsettings.*.secrets.json", ".env", "packages.config"],
+    "commitAuthorEmailPatterns": ["*@CHANGE-ME.com", "sync-automation@CHANGE-ME.com"]
+  },
+  "profiles": {
+    "service": {
+      "approverCount": {
+        "minimumApproverCount": 2,
+        "creatorVoteCounts": false,
+        "allowDownvotes": false,
+        "resetOnSourcePush": true,
+        "requireVoteOnLastIteration": true,
+        "resetRejectionsOnSourcePush": true
+      },
+      "workItemLinking": true,
+      "commentResolution": true,
+      "mergeStrategy": {
+        "allowSquash": true,
+        "allowNoFastForward": false,
+        "allowRebase": false,
+        "allowRebaseMerge": false
+      },
+      "buildValidation": [
+        {
+          "pipelineKind": "pr",
+          "displayName": "PR validation",
+          "queueOnSourceUpdateOnly": true,
+          "manualQueueOnly": false,
+          "validDurationMinutes": 720,
+          "pathFilter": null
+        }
+      ],
+      "requiredReviewers": [
+        {
+          "group": "Security Champions",
+          "minimumApproverCount": 1,
+          "message": "Auth, secrets, container or infrastructure change: Security Champions review required.",
+          "pathFilters": ["/infra/*", "/Dockerfile", "/src/*/Auth*", "/src/*/Security*", "/nuget.config", "/azure-pipelines.yml", "/pipelines/*"]
+        }
+      ],
+      "statusChecks": []
+    },
+    "platform": {
+      "approverCount": {
+        "minimumApproverCount": 2,
+        "creatorVoteCounts": false,
+        "allowDownvotes": false,
+        "resetOnSourcePush": true,
+        "requireVoteOnLastIteration": true,
+        "resetRejectionsOnSourcePush": true
+      },
+      "workItemLinking": true,
+      "commentResolution": true,
+      "mergeStrategy": {
+        "allowSquash": true,
+        "allowNoFastForward": false,
+        "allowRebase": false,
+        "allowRebaseMerge": false
+      },
+      "buildValidation": [
+        {
+          "pipelineKind": "pr",
+          "displayName": "PR validation (what-if and lint)",
+          "queueOnSourceUpdateOnly": true,
+          "manualQueueOnly": false,
+          "validDurationMinutes": 720,
+          "pathFilter": null
+        }
+      ],
+      "requiredReviewers": [
+        {
+          "group": "Platform Engineering",
+          "minimumApproverCount": 1,
+          "message": "Platform Engineering owns this repository.",
+          "pathFilters": ["/*"]
+        },
+        {
+          "group": "Security Champions",
+          "minimumApproverCount": 1,
+          "message": "RBAC, network, Key Vault, policy or base-image change.",
+          "pathFilters": ["/bicep/modules/rbac*", "/bicep/modules/key-vault*", "/bicep/modules/network*", "/bicep/modules/policy*", "/base-images/*"]
+        }
+      ],
+      "statusChecks": []
+    },
+    "library": {
+      "approverCount": {
+        "minimumApproverCount": 2,
+        "creatorVoteCounts": false,
+        "allowDownvotes": false,
+        "resetOnSourcePush": true,
+        "requireVoteOnLastIteration": true,
+        "resetRejectionsOnSourcePush": true
+      },
+      "workItemLinking": true,
+      "commentResolution": true,
+      "mergeStrategy": {
+        "allowSquash": true,
+        "allowNoFastForward": false,
+        "allowRebase": false,
+        "allowRebaseMerge": false
+      },
+      "buildValidation": [
+        {
+          "pipelineKind": "pr",
+          "displayName": "PR validation (build, tests, schema contract)",
+          "queueOnSourceUpdateOnly": true,
+          "manualQueueOnly": false,
+          "validDurationMinutes": 720,
+          "pathFilter": null
+        }
+      ],
+      "requiredReviewers": [
+        {
+          "group": "Approvals Team",
+          "minimumApproverCount": 1,
+          "message": "Message contract change: the producing team must review.",
+          "pathFilters": ["/schemas/*", "/src/Meridian.Messaging.Contracts/*", "/queues.json"]
+        }
+      ],
+      "statusChecks": []
+    },
+    "governance": {
+      "approverCount": {
+        "minimumApproverCount": 3,
+        "creatorVoteCounts": false,
+        "allowDownvotes": false,
+        "resetOnSourcePush": true,
+        "requireVoteOnLastIteration": true,
+        "resetRejectionsOnSourcePush": true
+      },
+      "workItemLinking": true,
+      "commentResolution": true,
+      "mergeStrategy": {
+        "allowSquash": true,
+        "allowNoFastForward": false,
+        "allowRebase": false,
+        "allowRebaseMerge": false
+      },
+      "buildValidation": [
+        {
+          "pipelineKind": "ci",
+          "displayName": "Governance validation",
+          "queueOnSourceUpdateOnly": true,
+          "manualQueueOnly": false,
+          "validDurationMinutes": 720,
+          "pathFilter": null
+        }
+      ],
+      "requiredReviewers": [
+        {
+          "group": "Platform Engineering",
+          "minimumApproverCount": 2,
+          "message": "Templates and policies change every consumer. Two Platform Engineering reviewers.",
+          "pathFilters": ["/*"]
+        },
+        {
+          "group": "Security Champions",
+          "minimumApproverCount": 1,
+          "message": "Security review of governance change.",
+          "pathFilters": ["/*"]
+        }
+      ],
+      "statusChecks": []
+    }
+  }
+}

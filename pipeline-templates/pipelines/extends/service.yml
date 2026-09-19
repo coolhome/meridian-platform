@@ -1,0 +1,128 @@
+# Governed pipeline for Meridian services (dotnet-api, dotnet-worker, node-spa).
+# Consumer passes data only. See README.md for the contract.
+parameters:
+- name: serviceName
+  type: string
+- name: kind
+  type: string
+  values:
+  - dotnet-api
+  - dotnet-worker
+  - node-spa
+- name: environments
+  type: object
+  default:
+  - dev
+  - test
+  - prod
+- name: dotnet
+  type: object
+  default: {}
+- name: node
+  type: object
+  default: {}
+- name: container
+  type: object
+  default: {}
+- name: infra
+  type: object
+  default: {}
+- name: preBuildSteps
+  type: stepList
+  default: []
+- name: smokePath
+  type: string
+  default: /health/ready
+  # Empty string disables HTTP smoke tests (services without ingress).
+- name: prodStrategy
+  type: string
+  default: canary
+  values:
+  - canary
+  - runOnce
+- name: deploy
+  type: boolean
+  default: true
+
+stages:
+- stage: Build
+  displayName: Build
+  variables:
+  - template: ../../variables/common.yml
+  jobs:
+  - ${{ if startsWith(parameters.kind, 'dotnet-') }}:
+    - template: ../../jobs/build-dotnet.yml
+      parameters:
+        dotnet: ${{ parameters.dotnet }}
+        preBuildSteps: ${{ parameters.preBuildSteps }}
+        publishArtifact: true
+  - ${{ if eq(parameters.kind, 'node-spa') }}:
+    - template: ../../jobs/build-node.yml
+      parameters:
+        node: ${{ parameters.node }}
+        preBuildSteps: ${{ parameters.preBuildSteps }}
+
+- stage: Scan
+  displayName: Security scan
+  dependsOn: []
+  variables:
+  - template: ../../variables/common.yml
+  jobs:
+  - template: ../../jobs/security-scan.yml
+
+- ${{ if and(eq(parameters.deploy, true), startsWith(parameters.kind, 'dotnet-')) }}:
+  - stage: Package
+    displayName: Container image
+    dependsOn:
+    - Build
+    - Scan
+    condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+    variables:
+    - template: ../../variables/common.yml
+    jobs:
+    - template: ../../jobs/package-container.yml
+      parameters:
+        serviceName: ${{ parameters.serviceName }}
+        container: ${{ parameters.container }}
+
+- ${{ if eq(parameters.deploy, true) }}:
+  - ${{ each env in parameters.environments }}:
+    # No dependsOn: stages without one run in file order, which gives dev -> test -> prod.
+    - stage: Deploy_${{ env }}
+      displayName: Deploy ${{ env }}
+      condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+      ${{ if eq(env, 'prod') }}:
+        lockBehavior: sequential
+      variables:
+      - template: ../../variables/common.yml
+      - template: ../../variables/environment.yml
+        parameters:
+          environment: ${{ env }}
+      jobs:
+      - ${{ if startsWith(parameters.kind, 'dotnet-') }}:
+        - template: ../../jobs/deploy-container-app.yml
+          parameters:
+            environment: ${{ env }}
+            serviceName: ${{ parameters.serviceName }}
+            infra: ${{ parameters.infra }}
+            smokePath: ${{ parameters.smokePath }}
+            prodStrategy: ${{ parameters.prodStrategy }}
+      - ${{ if eq(parameters.kind, 'node-spa') }}:
+        - template: ../../jobs/deploy-static-site.yml
+          parameters:
+            environment: ${{ env }}
+            serviceName: ${{ parameters.serviceName }}
+            infra: ${{ parameters.infra }}
+
+- ${{ if and(eq(parameters.deploy, true), containsValue(parameters.environments, 'prod')) }}:
+  - stage: Release
+    displayName: Tag release
+    condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+    variables:
+    - template: ../../variables/common.yml
+    jobs:
+    - job: Tag
+      pool:
+        vmImage: $(Meridian.VmImage)
+      steps:
+      - template: ../../steps/tag-release.yml

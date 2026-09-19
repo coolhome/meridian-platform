@@ -1,0 +1,24 @@
+mode: ContinuousDelivery
+next-version: 1.0.0
+tag-prefix: '[vV]'
+branches:
+  main:
+    regex: ^main$
+    label: ''
+    increment: Patch
+    is-main-branch: true
+  release:
+    regex: ^release[/-]
+    label: rc
+    increment: None
+    is-release-branch: true
+  feature:
+    regex: ^(feature|fix|chore)[/-]
+    label: '{BranchName}'
+    increment: Inherit
+  pull-request:
+    regex: ^(pull|pull\-requests|pr)[/-]
+    label: pr
+    increment: Inherit
+ignore:
+  sha: []

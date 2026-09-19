@@ -1,0 +1,22 @@
+trigger: none
+
+resources:
+  repositories:
+  - repository: templates
+    type: git
+    name: Meridian/meridian-pipeline-templates
+    ref: refs/tags/v1.0.0
+
+variables:
+- name: Meridian.Component
+  value: observability
+
+extends:
+  template: pipelines/extends/infrastructure.yml@templates
+  parameters:
+    name: observability
+    scope: resourceGroup
+    resourceGroupPattern: rg-mrd-{env}-platform
+    templatePath: alerts/main.bicep
+    parametersPattern: alerts/params/{env}.bicepparam
+    deploy: false

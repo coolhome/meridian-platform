@@ -1,0 +1,31 @@
+# Stamped from governance/templates/overlay (every mirrored repo gets the same ignore set).
+
+# .NET
+bin/
+obj/
+*.user
+*.suo
+TestResults/
+coverage*/
+*.trx
+.publish/
+
+# Node
+node_modules/
+dist/
+.vite/
+coverage/
+
+# Local secrets and tooling state
+*.local.json
+.env
+.env.*
+!.env.example
+.azure/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vs/
+.idea/
+*.swp

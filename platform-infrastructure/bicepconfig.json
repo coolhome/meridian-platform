@@ -1,0 +1,21 @@
+{
+  "analyzers": {
+    "core": {
+      "enabled": true,
+      "rules": {
+        "no-hardcoded-env-urls": { "level": "error" },
+        "no-unused-params": { "level": "error" },
+        "no-unused-vars": { "level": "error" },
+        "prefer-interpolation": { "level": "warning" },
+        "secure-parameter-default": { "level": "error" },
+        "outputs-should-not-contain-secrets": { "level": "error" },
+        "use-recent-api-versions": { "level": "warning", "maxAllowedAgeInDays": 730 },
+        "use-stable-resource-identifiers": { "level": "error" },
+        "no-hardcoded-location": { "level": "error" },
+        "explicit-values-for-loc-params": { "level": "warning" },
+        "adminusername-should-not-be-literal": { "level": "error" },
+        "use-resource-id-functions": { "level": "warning" }
+      }
+    }
+  }
+}

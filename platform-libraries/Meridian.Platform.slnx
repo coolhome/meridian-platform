@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Meridian.Messaging.Contracts/Meridian.Messaging.Contracts.csproj" />
+    <Project Path="src/Meridian.ServiceDefaults/Meridian.ServiceDefaults.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Meridian.Messaging.Contracts.Tests/Meridian.Messaging.Contracts.Tests.csproj" />
+    <Project Path="tests/Meridian.ServiceDefaults.Tests/Meridian.ServiceDefaults.Tests.csproj" />
+  </Folder>
+</Solution>

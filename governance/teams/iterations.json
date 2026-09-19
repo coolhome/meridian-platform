@@ -1,0 +1,8 @@
+{
+  "$comment": "Sprint cadence created under the project root iteration by tooling/Initialize-AzureDevOps.ps1. Dates are absolute; regenerate for a new planning horizon.",
+  "cadenceDays": 14,
+  "start": "2026-09-21",
+  "count": 6,
+  "namePattern": "Sprint {n}",
+  "assignToTeams": ["Platform Engineering", "Identity Team", "Approvals Team", "Experience Team", "SRE"]
+}

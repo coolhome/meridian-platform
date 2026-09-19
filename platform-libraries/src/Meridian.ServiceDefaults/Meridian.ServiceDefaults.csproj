@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Meridian.ServiceDefaults</PackageId>
+    <Description>Opinionated ASP.NET Core defaults for Meridian services: Application Insights, health endpoints, ProblemDetails, HTTP resilience, correlation ids, Entra ID or Development authentication with role mapping, downstream token forwarding.</Description>
+    <PackageTags>meridian;aspnetcore;service-defaults</PackageTags>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.ApplicationInsights.AspNetCore" Version="2.22.0" />
+    <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="10.10.0" />
+    <PackageReference Include="Microsoft.Identity.Web" Version="4.14.2" />
+  </ItemGroup>
+
+</Project>

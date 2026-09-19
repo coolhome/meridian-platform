@@ -1,0 +1,34 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, sans-serif;
+  --accent: #1f6feb;
+  --muted: #6b7280;
+  --border: #d0d7de;
+}
+body { margin: 0; }
+main { max-width: 960px; margin: 0 auto; padding: 1.5rem; display: grid; gap: 1.5rem; }
+header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+header > div { display: flex; align-items: center; gap: 0.75rem; }
+h1 { font-size: 1.4rem; margin: 0; }
+h2 { font-size: 1.1rem; margin: 0 0 0.5rem; }
+.muted { color: var(--muted); font-size: 0.9rem; }
+.badge { background: var(--accent); color: white; border-radius: 999px; padding: 0.1rem 0.6rem; font-size: 0.75rem; }
+.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+.tiles div { border: 1px solid var(--border); border-radius: 8px; padding: 1rem; display: grid; }
+.tiles strong { font-size: 1.8rem; }
+.approvals { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.5rem; }
+.approvals li { border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem 1rem; display: flex; justify-content: space-between; gap: 1rem; align-items: center; flex-wrap: wrap; }
+.approvals li.overdue { border-color: #d1242f; }
+.status { font-size: 0.75rem; padding: 0.1rem 0.5rem; border-radius: 4px; border: 1px solid var(--border); margin-left: 0.5rem; }
+.status-approved { color: #1a7f37; }
+.status-rejected { color: #d1242f; }
+.actions { display: flex; gap: 0.5rem; align-items: center; }
+form { border: 1px solid var(--border); border-radius: 8px; padding: 1rem; display: grid; gap: 0.75rem; }
+label { display: grid; gap: 0.25rem; font-size: 0.9rem; }
+input, textarea, select { font: inherit; padding: 0.4rem 0.5rem; border: 1px solid var(--border); border-radius: 6px; }
+button { font: inherit; padding: 0.45rem 0.9rem; border-radius: 6px; border: 1px solid var(--accent); background: var(--accent); color: white; cursor: pointer; }
+button.secondary { background: transparent; color: inherit; border-color: var(--border); }
+button:disabled { opacity: 0.6; cursor: default; }
+.signin { text-align: center; padding-top: 4rem; }
+.dev { display: inline-grid; gap: 0.5rem; text-align: left; margin-bottom: 1rem; }
+[role='alert'] { color: #d1242f; }

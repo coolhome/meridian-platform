@@ -1,0 +1,28 @@
+# Service level objectives. Alerts in alerts/main.bicep are the fast-burn signals; the
+# error-budget query in kql/error-budget.kql is the slow-burn review input.
+slos:
+  - service: app-backend
+    sli: "successful requests (HTTP < 500) with latency < 1000 ms / all requests"
+    objective: 99.5
+    window: 30d
+    owner: Experience Team
+    alerting:
+      fastBurn: failed request rate > 5% over 15m (alert-*-failed-requests)
+      availability: 2 of 3 probe locations failing (alert-*-availability)
+  - service: approval-service
+    sli: "successful requests with latency < 800 ms / all requests"
+    objective: 99.9
+    window: 30d
+    owner: Approvals Team
+  - service: identity-service
+    sli: "successful requests with latency < 500 ms / all requests"
+    objective: 99.9
+    window: 30d
+    owner: Identity Team
+  - service: worker-jobs
+    sli: "ApprovalRequested messages handled within 60 s of publish / all messages"
+    objective: 99.0
+    window: 30d
+    owner: Approvals Team
+    alerting:
+      backlog: KEDA scales to max replicas for > 15m (Container Apps metric alert, future)

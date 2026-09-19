@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Meridian.Messaging.Contracts</PackageId>
+    <Description>Message envelope, event payloads and queue names for the Meridian Approval Platform. JSON Schemas ship in the package under contentFiles/schemas.</Description>
+    <PackageTags>meridian;messaging;contracts</PackageTags>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="/" />
+    <None Include="../../schemas/*.json" Pack="true" PackagePath="contentFiles/any/any/schemas/" />
+    <None Include="../../queues.json" Pack="true" PackagePath="contentFiles/any/any/" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,14 @@
+{
+  "$comment": "Pipelines compiled by this repo's CI against the candidate template commit (pipelines preview API). Keep in sync with repos.manifest.json in the GitHub monorepo.",
+  "pipelines": [
+    "platform-infrastructure-cicd",
+    "platform-libraries-cicd",
+    "identity-service-cicd",
+    "approval-service-cicd",
+    "app-backend-cicd",
+    "app-frontend-cicd",
+    "worker-jobs-cicd",
+    "containers-base-images",
+    "observability-cicd"
+  ]
+}

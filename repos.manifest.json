@@ -1,0 +1,196 @@
+{
+  "$schema": "./tooling/schemas/repos.manifest.schema.json",
+  "platform": {
+    "name": "meridian",
+    "displayName": "Meridian Approval Platform",
+    "resourcePrefix": "mrd"
+  },
+  "github": {
+    "repository": "CHANGE-ME/meridian-platform",
+    "defaultBranch": "main"
+  },
+  "azureDevOps": {
+    "organizationUrl": "https://dev.azure.com/CHANGE-ME",
+    "project": "Meridian",
+    "projectDescription": "Meridian Approval Platform - execution plane (Repos mirrors, Pipelines, Environments, Boards, Artifacts, Wiki).",
+    "processTemplate": "Agile",
+    "defaultBranch": "main",
+    "syncBranches": ["main", "release/*"],
+    "artifactsFeed": "meridian",
+    "agentPool": "Azure Pipelines",
+    "templatesRepository": "meridian-pipeline-templates",
+    "templatesRef": "refs/tags/v1.0.0",
+    "allowedTemplateRefs": ["refs/tags/v1.0.0"],
+    "containerRegistry": "acrmrdshared",
+    "wiki": {
+      "name": "Meridian",
+      "repository": "meridian-governance",
+      "mappedPath": "/docs"
+    },
+    "serviceConnections": {
+      "dev": "sc-meridian-dev",
+      "test": "sc-meridian-test",
+      "prod": "sc-meridian-prod"
+    },
+    "variableGroups": ["meridian-shared", "meridian-dev", "meridian-test", "meridian-prod"]
+  },
+  "governance": {
+    "environments": "governance/environments/environments.json",
+    "branchPolicyProfiles": "governance/policies/branch-policy-profiles.json",
+    "projectPipelineSettings": "governance/policies/project-pipeline-settings.json",
+    "teams": "governance/teams/teams.json",
+    "iterations": "governance/teams/iterations.json",
+    "overlay": "governance/templates/overlay"
+  },
+  "repos": [
+    {
+      "folder": "governance",
+      "name": "meridian-governance",
+      "tier": "governance",
+      "owners": "Platform Engineering",
+      "policyProfile": "governance",
+      "areaPath": "Platform\\Governance",
+      "pipelineFolder": "\\Governance",
+      "pipelines": [
+        { "name": "governance-ci", "yaml": "azure-pipelines.yml", "kind": "ci" }
+      ]
+    },
+    {
+      "folder": "pipeline-templates",
+      "name": "meridian-pipeline-templates",
+      "tier": "governance",
+      "owners": "Platform Engineering",
+      "policyProfile": "governance",
+      "areaPath": "Platform\\Pipelines",
+      "pipelineFolder": "\\Governance",
+      "pipelines": [
+        { "name": "pipeline-templates-ci", "yaml": "azure-pipelines.yml", "kind": "ci" }
+      ]
+    },
+    {
+      "folder": "platform-infrastructure",
+      "name": "meridian-platform-infrastructure",
+      "tier": "platform",
+      "owners": "Platform Engineering",
+      "policyProfile": "platform",
+      "areaPath": "Platform\\Infrastructure",
+      "pipelineFolder": "\\Platform",
+      "pipelines": [
+        { "name": "platform-infrastructure-cicd", "yaml": "azure-pipelines.yml", "kind": "cicd" },
+        { "name": "platform-infrastructure-pr", "yaml": "pipelines/pr-validation.yml", "kind": "pr" }
+      ]
+    },
+    {
+      "folder": "platform-libraries",
+      "name": "meridian-platform-libraries",
+      "tier": "library",
+      "owners": "Platform Engineering",
+      "policyProfile": "library",
+      "areaPath": "Platform\\Libraries",
+      "pipelineFolder": "\\Platform",
+      "pipelines": [
+        { "name": "platform-libraries-cicd", "yaml": "azure-pipelines.yml", "kind": "cicd" },
+        { "name": "platform-libraries-pr", "yaml": "pipelines/pr-validation.yml", "kind": "pr" }
+      ]
+    },
+    {
+      "folder": "identity-service",
+      "name": "meridian-identity-service",
+      "tier": "service",
+      "owners": "Identity Team",
+      "policyProfile": "service",
+      "areaPath": "Services\\Identity",
+      "pipelineFolder": "\\Services\\identity-service",
+      "pipelines": [
+        { "name": "identity-service-cicd", "yaml": "azure-pipelines.yml", "kind": "cicd" },
+        { "name": "identity-service-pr", "yaml": "pipelines/pr-validation.yml", "kind": "pr" }
+      ]
+    },
+    {
+      "folder": "approval-service",
+      "name": "meridian-approval-service",
+      "tier": "service",
+      "owners": "Approvals Team",
+      "policyProfile": "service",
+      "areaPath": "Services\\Approvals",
+      "pipelineFolder": "\\Services\\approval-service",
+      "pipelines": [
+        { "name": "approval-service-cicd", "yaml": "azure-pipelines.yml", "kind": "cicd" },
+        { "name": "approval-service-pr", "yaml": "pipelines/pr-validation.yml", "kind": "pr" }
+      ]
+    },
+    {
+      "folder": "app-backend",
+      "name": "meridian-app-backend",
+      "tier": "service",
+      "owners": "Experience Team",
+      "policyProfile": "service",
+      "areaPath": "Services\\Experience\\BFF",
+      "pipelineFolder": "\\Services\\app-backend",
+      "pipelines": [
+        { "name": "app-backend-cicd", "yaml": "azure-pipelines.yml", "kind": "cicd" },
+        { "name": "app-backend-pr", "yaml": "pipelines/pr-validation.yml", "kind": "pr" }
+      ]
+    },
+    {
+      "folder": "app-frontend",
+      "name": "meridian-app-frontend",
+      "tier": "service",
+      "owners": "Experience Team",
+      "policyProfile": "service",
+      "areaPath": "Services\\Experience\\Web",
+      "pipelineFolder": "\\Services\\app-frontend",
+      "pipelines": [
+        { "name": "app-frontend-cicd", "yaml": "azure-pipelines.yml", "kind": "cicd" },
+        { "name": "app-frontend-pr", "yaml": "pipelines/pr-validation.yml", "kind": "pr" }
+      ]
+    },
+    {
+      "folder": "worker-jobs",
+      "name": "meridian-worker-jobs",
+      "tier": "service",
+      "owners": "Approvals Team",
+      "policyProfile": "service",
+      "areaPath": "Services\\Approvals\\Worker",
+      "pipelineFolder": "\\Services\\worker-jobs",
+      "pipelines": [
+        { "name": "worker-jobs-cicd", "yaml": "azure-pipelines.yml", "kind": "cicd" },
+        { "name": "worker-jobs-pr", "yaml": "pipelines/pr-validation.yml", "kind": "pr" }
+      ]
+    },
+    {
+      "folder": "containers",
+      "name": "meridian-containers",
+      "tier": "platform",
+      "owners": "Platform Engineering",
+      "policyProfile": "platform",
+      "areaPath": "Platform\\Containers",
+      "pipelineFolder": "\\Platform",
+      "pipelines": [
+        { "name": "containers-base-images", "yaml": "azure-pipelines.yml", "kind": "cicd" },
+        { "name": "containers-pr", "yaml": "pipelines/pr-validation.yml", "kind": "pr" }
+      ]
+    },
+    {
+      "folder": "observability",
+      "name": "meridian-observability",
+      "tier": "platform",
+      "owners": "SRE",
+      "policyProfile": "platform",
+      "areaPath": "Platform\\Observability",
+      "pipelineFolder": "\\Platform",
+      "pipelines": [
+        { "name": "observability-cicd", "yaml": "azure-pipelines.yml", "kind": "cicd" },
+        { "name": "observability-pr", "yaml": "pipelines/pr-validation.yml", "kind": "pr" }
+      ]
+    },
+    {
+      "folder": "tooling",
+      "name": null,
+      "tier": "tooling",
+      "owners": "Platform Engineering",
+      "mirror": false,
+      "pipelines": []
+    }
+  ]
+}

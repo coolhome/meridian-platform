@@ -1,0 +1,43 @@
+parameters:
+- name: environment
+  type: string
+- name: name
+  type: string
+- name: scope
+  type: string
+  default: resourceGroup
+- name: templatePath
+  type: string
+- name: parametersFile
+  type: string
+  default: ''
+- name: resourceGroup
+  type: string
+  default: ''
+- name: additionalParameters
+  type: string
+  default: ''
+
+jobs:
+- deployment: Deploy
+  displayName: Deploy ${{ parameters.name }} to ${{ parameters.environment }}
+  pool:
+    vmImage: $(Meridian.VmImage)
+  environment: ${{ parameters.environment }}
+  strategy:
+    runOnce:
+      deploy:
+        steps:
+        - download: none
+        - template: ../steps/checkout.yml
+          parameters:
+            fetchDepth: 1
+        - template: ../steps/bicep-deploy.yml
+          parameters:
+            serviceConnection: $(Meridian.ServiceConnection)
+            scope: ${{ parameters.scope }}
+            resourceGroup: ${{ parameters.resourceGroup }}
+            templatePath: ${{ parameters.templatePath }}
+            parametersFile: ${{ parameters.parametersFile }}
+            additionalParameters: ${{ parameters.additionalParameters }}
+            deploymentName: ${{ parameters.name }}-$(Build.BuildId)

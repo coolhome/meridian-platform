@@ -1,0 +1,46 @@
+name: $(Date:yyyyMMdd)$(Rev:.r)
+
+trigger:
+  batch: true
+  branches:
+    include:
+    - main
+  paths:
+    include:
+    - base-images/*
+    - image-manifest.json
+    - azure-pipelines.yml
+
+# Weekly rebuild picks up upstream patches even when nothing changed here.
+schedules:
+- cron: '0 3 * * 0'
+  displayName: Weekly base image rebuild (Sunday 03:00 UTC)
+  branches:
+    include:
+    - main
+  always: true
+
+resources:
+  repositories:
+  - repository: templates
+    type: git
+    name: Meridian/meridian-pipeline-templates
+    ref: refs/tags/v1.0.0
+
+variables:
+- name: Meridian.Component
+  value: containers
+
+extends:
+  template: pipelines/extends/container-images.yml@templates
+  parameters:
+    images:
+    - name: dotnet-aspnet
+      context: base-images/dotnet-aspnet
+      channel: '10.0'
+    - name: dotnet-runtime
+      context: base-images/dotnet-runtime
+      channel: '10.0'
+    - name: build-tools
+      context: base-images/build-tools
+      channel: '10.0'

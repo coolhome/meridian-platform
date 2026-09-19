@@ -1,0 +1,12 @@
+# Governed checkout: full history for GitVersion, no persisted credentials.
+parameters:
+- name: fetchDepth
+  type: number
+  default: 0
+
+steps:
+- checkout: self
+  persistCredentials: false
+  fetchDepth: ${{ parameters.fetchDepth }}
+  fetchTags: true
+  clean: true

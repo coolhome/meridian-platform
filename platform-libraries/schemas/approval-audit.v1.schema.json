@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://meridian.local/schemas/approval-audit.v1.schema.json",
+  "title": "meridian.approval.audit v1",
+  "allOf": [{ "$ref": "envelope.schema.json" }],
+  "properties": {
+    "messageType": { "const": "meridian.approval.audit" },
+    "schemaVersion": { "const": 1 },
+    "payload": {
+      "type": "object",
+      "required": ["approvalId", "action", "actor", "at"],
+      "properties": {
+        "approvalId": { "type": "string", "format": "uuid" },
+        "action": { "type": "string", "minLength": 1 },
+        "actor": { "type": "string", "minLength": 1 },
+        "detail": { "type": ["string", "null"] },
+        "at": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

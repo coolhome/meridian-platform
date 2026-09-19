@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://meridian.local/schemas/approval-requested.v1.schema.json",
+  "title": "meridian.approval.requested v1",
+  "allOf": [{ "$ref": "envelope.schema.json" }],
+  "properties": {
+    "messageType": { "const": "meridian.approval.requested" },
+    "schemaVersion": { "const": 1 },
+    "payload": {
+      "type": "object",
+      "required": ["approvalId", "title", "requestedBy", "approvers", "requestedAt"],
+      "properties": {
+        "approvalId": { "type": "string", "format": "uuid" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "requestedBy": { "type": "string", "minLength": 1 },
+        "approvers": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "requestedAt": { "type": "string", "format": "date-time" },
+        "dueAt": { "type": ["string", "null"], "format": "date-time" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

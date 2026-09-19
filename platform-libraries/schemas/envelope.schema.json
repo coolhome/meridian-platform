@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://meridian.local/schemas/envelope.schema.json",
+  "title": "Meridian message envelope",
+  "type": "object",
+  "required": ["messageId", "messageType", "schemaVersion", "occurredAt", "correlationId", "source", "payload"],
+  "properties": {
+    "messageId": { "type": "string", "minLength": 32, "maxLength": 32 },
+    "messageType": { "type": "string", "pattern": "^meridian(\\.[a-z]+)+$" },
+    "schemaVersion": { "type": "integer", "minimum": 1 },
+    "occurredAt": { "type": "string", "format": "date-time" },
+    "correlationId": { "type": "string", "minLength": 1 },
+    "source": { "type": "string", "minLength": 1 },
+    "payload": { "type": "object" }
+  },
+  "additionalProperties": false
+}

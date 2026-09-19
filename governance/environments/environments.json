@@ -1,0 +1,113 @@
+{
+  "$comment": "Environments, their Azure targets and their checks. Applied by tooling/Initialize-AzureDevOps.ps1. Check evaluation order in Azure DevOps: static (branch control, required template) -> pre-approvals -> dynamic (business hours) -> post-approvals -> exclusive lock. Task-check definitionRefs are resolved by task name at runtime.",
+  "checkTypes": {
+    "approval": { "id": "8C6F20A7-A545-4486-9777-F762FAFE0D4D", "name": "Approval" },
+    "exclusiveLock": { "id": "2EF31AD6-BAA0-403A-8B45-2CBC9B4E5563", "name": "ExclusiveLock" },
+    "extendsCheck": { "id": "4020E66E-B0F3-47E1-BC88-48F3CC59B5F3", "name": "ExtendsCheck" },
+    "taskCheck": { "id": "FE1DE3EE-A436-41B4-BB20-F6EB4CB879A7", "name": "Task Check" }
+  },
+  "requiredTemplates": [
+    "pipelines/extends/service.yml",
+    "pipelines/extends/infrastructure.yml",
+    "pipelines/extends/library.yml",
+    "pipelines/extends/container-images.yml"
+  ],
+  "environments": [
+    {
+      "name": "shared",
+      "description": "Environment-agnostic resources: container registry and base images. Deployed by platform-infrastructure and containers.",
+      "azure": {
+        "subscriptionId": "00000000-0000-0000-0000-000000000000",
+        "subscriptionName": "CHANGE-ME-shared",
+        "tenantId": "00000000-0000-0000-0000-000000000000",
+        "identityClientId": "00000000-0000-0000-0000-000000000000",
+        "identityResourceGroup": "rg-mrd-shared-platform",
+        "identityName": "id-mrd-shared-pipelines",
+        "location": "eastus2",
+        "uniqueSuffix": "CHANGE"
+      },
+      "serviceConnection": "sc-meridian-shared",
+      "variableGroup": "meridian-shared",
+      "checks": [
+        { "type": "requiredTemplate" },
+        { "type": "branchControl", "allowedBranches": "refs/heads/main,refs/heads/release/*", "ensureProtectionOfBranch": true },
+        { "type": "approval", "approvers": ["Platform Engineering"], "minRequired": 1, "requesterCannotApprove": true, "timeoutMinutes": 1440, "instructions": "Shared resources affect every environment." }
+      ]
+    },
+    {
+      "name": "dev",
+      "description": "Continuous deployment from main and release/*.",
+      "azure": {
+        "subscriptionId": "00000000-0000-0000-0000-000000000000",
+        "subscriptionName": "CHANGE-ME-nonprod",
+        "tenantId": "00000000-0000-0000-0000-000000000000",
+        "identityClientId": "00000000-0000-0000-0000-000000000000",
+        "identityResourceGroup": "rg-mrd-dev-platform",
+        "identityName": "id-mrd-dev-pipelines",
+        "location": "eastus2",
+        "uniqueSuffix": "CHANGE"
+      },
+      "serviceConnection": "sc-meridian-dev",
+      "variableGroup": "meridian-dev",
+      "keyVaultName": "kv-mrd-dev-CHANGE",
+      "checks": [
+        { "type": "requiredTemplate" },
+        { "type": "branchControl", "allowedBranches": "refs/heads/main,refs/heads/release/*", "ensureProtectionOfBranch": false }
+      ]
+    },
+    {
+      "name": "test",
+      "description": "QA-approved promotion, business hours only.",
+      "azure": {
+        "subscriptionId": "00000000-0000-0000-0000-000000000000",
+        "subscriptionName": "CHANGE-ME-nonprod",
+        "tenantId": "00000000-0000-0000-0000-000000000000",
+        "identityClientId": "00000000-0000-0000-0000-000000000000",
+        "identityResourceGroup": "rg-mrd-test-platform",
+        "identityName": "id-mrd-test-pipelines",
+        "location": "eastus2",
+        "uniqueSuffix": "CHANGE"
+      },
+      "serviceConnection": "sc-meridian-test",
+      "variableGroup": "meridian-test",
+      "keyVaultName": "kv-mrd-test-CHANGE",
+      "checks": [
+        { "type": "requiredTemplate" },
+        { "type": "branchControl", "allowedBranches": "refs/heads/main,refs/heads/release/*", "ensureProtectionOfBranch": true },
+        { "type": "businessHours", "timeZone": "Eastern Standard Time", "startTime": "08:00", "endTime": "18:00", "daysOfWeek": "Monday,Tuesday,Wednesday,Thursday,Friday" },
+        { "type": "approval", "approvers": ["QA Leads"], "minRequired": 1, "requesterCannotApprove": true, "timeoutMinutes": 1440, "instructions": "Confirm dev smoke tests passed and the release note is linked." }
+      ]
+    },
+    {
+      "name": "prod",
+      "description": "Production. Two release managers, exclusive lock, protected branches only.",
+      "azure": {
+        "subscriptionId": "00000000-0000-0000-0000-000000000000",
+        "subscriptionName": "CHANGE-ME-prod",
+        "tenantId": "00000000-0000-0000-0000-000000000000",
+        "identityClientId": "00000000-0000-0000-0000-000000000000",
+        "identityResourceGroup": "rg-mrd-prod-platform",
+        "identityName": "id-mrd-prod-pipelines",
+        "location": "eastus2",
+        "uniqueSuffix": "CHANGE"
+      },
+      "serviceConnection": "sc-meridian-prod",
+      "variableGroup": "meridian-prod",
+      "keyVaultName": "kv-mrd-prod-CHANGE",
+      "checks": [
+        { "type": "requiredTemplate" },
+        { "type": "branchControl", "allowedBranches": "refs/heads/main,refs/heads/release/*", "ensureProtectionOfBranch": true },
+        { "type": "approval", "approvers": ["Release Managers"], "minRequired": 2, "requesterCannotApprove": true, "timeoutMinutes": 720, "instructions": "Test sign-off attached, change record referenced, canary plan understood." },
+        { "type": "exclusiveLock", "lockBehavior": "sequential" }
+      ]
+    },
+    {
+      "name": "packages",
+      "description": "Gate for publishing NuGet packages to the meridian feed.",
+      "checks": [
+        { "type": "requiredTemplate" },
+        { "type": "branchControl", "allowedBranches": "refs/heads/main,refs/heads/release/*", "ensureProtectionOfBranch": true }
+      ]
+    }
+  ]
+}

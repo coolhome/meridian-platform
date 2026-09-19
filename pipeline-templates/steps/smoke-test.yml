@@ -1,0 +1,26 @@
+parameters:
+- name: url
+  type: string
+- name: attempts
+  type: number
+  default: 12
+- name: delaySeconds
+  type: number
+  default: 10
+
+steps:
+- script: |
+    set -uo pipefail
+    for i in $(seq 1 "$ATTEMPTS"); do
+      code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$URL" || true)
+      echo "attempt $i: $URL -> $code"
+      if [ "$code" = "200" ]; then exit 0; fi
+      sleep "$DELAY"
+    done
+    echo "##vso[task.logissue type=error]smoke test failed for $URL"
+    exit 1
+  displayName: Smoke ${{ parameters.url }}
+  env:
+    URL: ${{ parameters.url }}
+    ATTEMPTS: ${{ parameters.attempts }}
+    DELAY: ${{ parameters.delaySeconds }}

@@ -1,0 +1,67 @@
+# Validation for governance-as-code. Runs on every mirrored push and as the build-validation
+# policy for this repository. No deployment, so no extends template is required here.
+trigger:
+  batch: true
+  branches:
+    include:
+    - main
+    - release/*
+
+pool:
+  vmImage: ubuntu-24.04
+
+steps:
+- checkout: self
+  persistCredentials: false
+  fetchDepth: 1
+
+- pwsh: |
+    $ErrorActionPreference = 'Stop'
+    $failed = 0
+    foreach ($f in Get-ChildItem -Recurse -Filter *.json) {
+      try { $null = Get-Content $f.FullName -Raw | ConvertFrom-Json -Depth 32; Write-Host "ok   $($f.FullName)" }
+      catch { $failed++; Write-Host "##vso[task.logissue type=error;sourcepath=$($f.FullName)]invalid JSON: $($_.Exception.Message)" }
+    }
+    if ($failed) { exit 1 }
+  displayName: JSON well-formed
+
+- pwsh: |
+    $ErrorActionPreference = 'Stop'
+    $env = Get-Content environments/environments.json -Raw | ConvertFrom-Json
+    $required = @('shared','dev','test','prod','packages')
+    $missing = $required | Where-Object { $_ -notin $env.environments.name }
+    if ($missing) { Write-Host "##vso[task.logissue type=error]environments missing: $($missing -join ', ')"; exit 1 }
+    foreach ($e in $env.environments) {
+      if ($e.name -eq 'prod') {
+        $types = @($e.checks.type)
+        foreach ($must in 'requiredTemplate','branchControl','approval','exclusiveLock') {
+          if ($must -notin $types) { Write-Host "##vso[task.logissue type=error]prod is missing the $must check"; exit 1 }
+        }
+        $approval = $e.checks | Where-Object type -eq 'approval'
+        if ($approval.minRequired -lt 2) { Write-Host "##vso[task.logissue type=error]prod approval must require at least 2 approvers"; exit 1 }
+      }
+    }
+    $profiles = Get-Content policies/branch-policy-profiles.json -Raw | ConvertFrom-Json
+    foreach ($p in $profiles.profiles.PSObject.Properties) {
+      if ($p.Value.approverCount.minimumApproverCount -lt 2) { Write-Host "##vso[task.logissue type=error]profile $($p.Name) allows fewer than 2 reviewers"; exit 1 }
+      if ($p.Value.approverCount.creatorVoteCounts) { Write-Host "##vso[task.logissue type=error]profile $($p.Name) lets the creator vote"; exit 1 }
+      if ($p.Value.mergeStrategy.allowNoFastForward -or $p.Value.mergeStrategy.allowRebaseMerge) { Write-Host "##vso[task.logissue type=error]profile $($p.Name) allows non-squash merges"; exit 1 }
+    }
+    Write-Host 'governance invariants hold'
+  displayName: Governance invariants
+
+- pwsh: |
+    $ErrorActionPreference = 'Stop'
+    $adrs = Get-ChildItem adr -Filter *.md | Sort-Object Name
+    $expected = 1
+    foreach ($a in $adrs) {
+      if ($a.Name -notmatch '^(\d{4})-[a-z0-9-]+\.md$') { Write-Host "##vso[task.logissue type=error]ADR name '$($a.Name)' must be NNNN-kebab-title.md"; exit 1 }
+      if ([int]$Matches[1] -ne $expected) { Write-Host "##vso[task.logissue type=error]ADR numbering gap at $($a.Name); expected $expected"; exit 1 }
+      $expected++
+    }
+    $order = Get-Content docs/.order | Where-Object { $_ }
+    foreach ($d in Get-ChildItem docs -Filter *.md) {
+      if ($d.BaseName -notin $order) { Write-Host "##vso[task.logissue type=error]docs/$($d.Name) is not listed in docs/.order"; exit 1 }
+    }
+    Write-Host "$($adrs.Count) ADRs, $($order.Count) wiki pages"
+  displayName: ADR numbering and wiki order

@@ -1,0 +1,62 @@
+name: $(Date:yyyyMMdd)$(Rev:.r)
+
+trigger:
+  batch: true
+  branches:
+    include:
+    - main
+    - release/*
+  paths:
+    exclude:
+    - README.md
+
+resources:
+  repositories:
+  - repository: templates
+    type: git
+    name: Meridian/meridian-pipeline-templates
+    ref: refs/tags/v1.0.0
+  pipelines:
+  - pipeline: platformLibraries
+    source: platform-libraries-cicd
+    trigger:
+      branches:
+        include:
+        - main
+      stages:
+      - Publish
+  containers:
+  - container: baseImage
+    type: acr
+    azureSubscription: sc-meridian-shared
+    resourceGroup: rg-mrd-shared-platform
+    registry: acrmrdshared
+    repository: base/dotnet-aspnet
+    trigger:
+      tags:
+        include:
+        - '10.0'
+
+variables:
+- name: Meridian.Component
+  value: app-backend
+
+extends:
+  template: pipelines/extends/service.yml@templates
+  parameters:
+    serviceName: app-backend
+    kind: dotnet-api
+    dotnet:
+      sdkVersion: 10.0.x
+      publishProject: src/Meridian.Bff/Meridian.Bff.csproj
+      lockedMode: false
+    container:
+      baseImage: base/dotnet-aspnet:10.0
+    infra:
+      templatePath: infra/main.bicep
+      parametersPattern: infra/params/{env}.bicepparam
+    smokePath: /health/ready
+    environments:
+    - dev
+    - test
+    - prod
