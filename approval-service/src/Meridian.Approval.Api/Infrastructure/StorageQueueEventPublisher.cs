@@ -36,12 +36,18 @@ internal static class QueueRouting
 internal sealed class StorageQueueEventPublisher(QueueServiceClient queueService, TelemetryClient telemetry, ILogger<StorageQueueEventPublisher> logger) : IEventPublisher
 {
     private readonly ConcurrentDictionary<string, QueueClient> _clients = new();
+    private readonly ConcurrentDictionary<string, bool> _ensured = new();
 
     public async Task PublishAsync<TPayload>(TPayload payload, string correlationId, CancellationToken cancellationToken)
         where TPayload : IMeridianMessage
     {
         var queueName = QueueRouting.QueueFor<TPayload>();
         var client = _clients.GetOrAdd(queueName, n => queueService.GetQueueClient(n));
+        if (_ensured.TryAdd(queueName, true))
+        {
+            await client.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
+        }
+
         var envelope = MessageEnvelope.Create(payload, "approval-service", correlationId);
         var body = MessageSerializer.Serialize(envelope);
 

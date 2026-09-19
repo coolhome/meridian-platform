@@ -22,6 +22,9 @@ public sealed class QueueProcessor<TPayload>(
     {
         var opts = options.Value;
         logger.LogInformation("Listening on {Queue} for {MessageType}", queueName, TPayload.MessageType);
+        // Queues are created by platform-libraries/infra/queues.bicep in Azure; locally (Azurite) create on demand.
+        await _queue.CreateIfNotExistsAsync(cancellationToken: stoppingToken);
+        await _poison.CreateIfNotExistsAsync(cancellationToken: stoppingToken);
 
         while (!stoppingToken.IsCancellationRequested)
         {

@@ -8,6 +8,16 @@ internal sealed class QueueAuditWriter(QueueServiceClient queueService) : IAudit
 {
     private readonly QueueClient _queue = queueService.GetQueueClient(QueueNames.ApprovalAudit);
 
-    public Task WriteAsync(ApprovalAuditEntry entry, string correlationId, CancellationToken cancellationToken)
-        => _queue.SendMessageAsync(MessageSerializer.Serialize(MessageEnvelope.Create(entry, "worker-jobs", correlationId)), cancellationToken: cancellationToken);
+    private bool _ensured;
+
+    public async Task WriteAsync(ApprovalAuditEntry entry, string correlationId, CancellationToken cancellationToken)
+    {
+        if (!_ensured)
+        {
+            await _queue.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
+            _ensured = true;
+        }
+
+        await _queue.SendMessageAsync(MessageSerializer.Serialize(MessageEnvelope.Create(entry, "worker-jobs", correlationId)), cancellationToken: cancellationToken);
+    }
 }
