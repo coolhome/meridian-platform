@@ -288,6 +288,19 @@ function Get-AdoIdentity {
     return $null
 }
 
+function Get-AdoGroupMemberNames {
+    <# Principal names of a graph group's direct members. The CLI returns a dictionary keyed by descriptor, or an empty object. #>
+    param([Parameter(Mandatory)][string]$Descriptor)
+    $membership = Invoke-AzCli devops security group membership list --id $Descriptor -AllowFailure
+    $names = @()
+    if ($membership) {
+        foreach ($p in $membership.PSObject.Properties) {
+            if ($p.Value -and $p.Value.PSObject.Properties['principalName']) { $names += $p.Value.principalName }
+        }
+    }
+    return $names
+}
+
 function Get-AdoPipelineDefinition {
     param([Parameter(Mandatory)][string]$Name)
     $res = Invoke-AdoRest -ProjectScoped -Path "build/definitions?name=$([uri]::EscapeDataString($Name))"

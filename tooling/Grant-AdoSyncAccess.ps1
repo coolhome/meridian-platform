@@ -32,7 +32,7 @@ foreach ($g in $teams.securityGroups | Where-Object { $_.PSObject.Properties['by
     if (-not $graph) { Write-MeridianWarn "group $($g.name) not found; run Initialize-AzureDevOps.ps1"; continue }
 
     if ($g.PSObject.Properties['members'] -and $g.members) {
-        $current = @((Invoke-AzCli devops security group membership list --id $graph.descriptor -AllowFailure).PSObject.Properties.Value | ForEach-Object { $_.principalName })
+        $current = Get-AdoGroupMemberNames -Descriptor $graph.descriptor
         foreach ($member in $g.members) {
             if ($current -contains $member) { Write-MeridianInfo "$member is a member"; continue }
             $null = Invoke-AzCli devops security group membership add --group-id $graph.descriptor --member-id $member

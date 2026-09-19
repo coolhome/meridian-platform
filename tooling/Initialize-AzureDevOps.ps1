@@ -63,7 +63,7 @@ foreach ($g in $teams.securityGroups) {
     }
     # members are principal names (e-mail); the sync identity that pushes mirrors lives here
     if ($g.PSObject.Properties['members'] -and $g.members) {
-        $current = @((Invoke-AzCli devops security group membership list --id $existing.descriptor -AllowFailure).PSObject.Properties.Value | ForEach-Object { $_.principalName })
+        $current = Get-AdoGroupMemberNames -Descriptor $existing.descriptor
         foreach ($member in $g.members) {
             if ($current -contains $member) { continue }
             $null = Invoke-AzCli devops security group membership add --group-id $existing.descriptor --member-id $member
