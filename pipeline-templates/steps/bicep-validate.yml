@@ -28,8 +28,13 @@ steps:
 - pwsh: |
     $ErrorActionPreference = 'Stop'
     Install-Module PSRule.Rules.Azure -RequiredVersion 1.45.0 -Force -Scope CurrentUser -AllowClobber
-    # Platform defaults; a repository ps-rule.yaml still adds exclusions and can override these keys.
-    $options = @{ 'Configuration.AZURE_BICEP_PARAMS_FILE_EXPANSION' = $true; 'Configuration.AZURE_BICEP_FILE_EXPANSION_TIMEOUT' = 60 }
+    # Start from the repository's ps-rule.yaml when it exists (a hashtable passed as -Option would replace it),
+    # then fill in platform defaults the repository did not set: analyse through .bicepparam files, and give
+    # bicep more than the 5 s default to compile.
+    $optionsFile = Join-Path $env:SCAN_PATH 'ps-rule.yaml'
+    $options = if (Test-Path $optionsFile) { New-PSRuleOption -Path $optionsFile } else { New-PSRuleOption }
+    if (-not $options.Configuration.ContainsKey('AZURE_BICEP_PARAMS_FILE_EXPANSION')) { $options.Configuration['AZURE_BICEP_PARAMS_FILE_EXPANSION'] = $true }
+    if (-not $options.Configuration.ContainsKey('AZURE_BICEP_FILE_EXPANSION_TIMEOUT')) { $options.Configuration['AZURE_BICEP_FILE_EXPANSION_TIMEOUT'] = 60 }
     Assert-PSRule -InputPath "$env:SCAN_PATH" -Module PSRule.Rules.Azure -Baseline "$env:BASELINE" -Option $options -Format File -OutputFormat NUnit3 -OutputPath "$(Agent.TempDirectory)/TestResults/psrule.xml" -ErrorAction Stop
   displayName: PSRule for Azure
   env:

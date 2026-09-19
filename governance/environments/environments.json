@@ -46,7 +46,8 @@
         },
         {
           "type": "branchControl",
-          "allowedBranches": "refs/heads/main,refs/heads/release/*",
+          "$comment": "Branch control evaluates every repository resource of the run, including the templates repository pinned to a tag, so the template tag pattern must be allowed alongside the deployable branches.",
+          "allowedBranches": "refs/heads/main,refs/heads/release/*,refs/tags/v*",
           "ensureProtectionOfBranch": true
         },
         {
@@ -84,7 +85,7 @@
         },
         {
           "type": "branchControl",
-          "allowedBranches": "refs/heads/main,refs/heads/release/*",
+          "allowedBranches": "refs/heads/main,refs/heads/release/*,refs/tags/v*",
           "ensureProtectionOfBranch": false
         }
       ]
@@ -111,7 +112,7 @@
         },
         {
           "type": "branchControl",
-          "allowedBranches": "refs/heads/main,refs/heads/release/*",
+          "allowedBranches": "refs/heads/main,refs/heads/release/*,refs/tags/v*",
           "ensureProtectionOfBranch": true
         },
         {
@@ -155,7 +156,7 @@
         },
         {
           "type": "branchControl",
-          "allowedBranches": "refs/heads/main,refs/heads/release/*",
+          "allowedBranches": "refs/heads/main,refs/heads/release/*,refs/tags/v*",
           "ensureProtectionOfBranch": true
         },
         {
@@ -183,7 +184,7 @@
         },
         {
           "type": "branchControl",
-          "allowedBranches": "refs/heads/main,refs/heads/release/*",
+          "allowedBranches": "refs/heads/main,refs/heads/release/*,refs/tags/v*",
           "ensureProtectionOfBranch": true
         }
       ]

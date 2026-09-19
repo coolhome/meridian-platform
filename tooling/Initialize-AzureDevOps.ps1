@@ -312,7 +312,23 @@ foreach ($e in $envDefs.environments) {
             }
             'branchControl' {
                 $label = 'branch control'
-                if ($existingChecks | Where-Object { $_.type.name -eq 'Task Check' -and $_.settings.definitionRef.name -ieq 'evaluatebranchProtection' }) { Write-MeridianInfo "branch control exists on $($e.name)"; continue }
+                $inputs = @{ allowedBranches = $c.allowedBranches; ensureProtectionOfBranch = ([bool]$c.ensureProtectionOfBranch).ToString().ToLower(); allowUnknownStatusBranch = 'false' }
+                $existing = $existingChecks | Where-Object { $_.type.name -eq 'Task Check' -and $_.settings.definitionRef.name -ieq 'evaluatebranchProtection' } | Select-Object -First 1
+                if ($existing) {
+                    # Converge the inputs (allowed branches change when template tags or release patterns do).
+                    $drift = @('allowedBranches', 'ensureProtectionOfBranch', 'allowUnknownStatusBranch') | Where-Object { "$($existing.settings.inputs.$_)" -ne "$($inputs[$_])" }
+                    if (-not $drift) { Write-MeridianInfo "branch control exists on $($e.name)"; continue }
+                    $update = @{
+                        id       = $existing.id
+                        type     = @{ id = $existing.type.id; name = $existing.type.name }
+                        settings = @{ displayName = 'Branch control'; definitionRef = $existing.settings.definitionRef; inputs = $inputs; retryInterval = 0 }
+                        resource = $resource
+                        timeout  = $existing.timeout
+                    }
+                    $null = Invoke-AdoRest -Method PATCH -ProjectScoped -Path "pipelines/checks/configurations/$($existing.id)" -Body $update -ApiVersion '7.1-preview.1'
+                    Write-MeridianOk "branch control on $($e.name) now allows $($c.allowedBranches)"
+                    continue
+                }
                 $task = Get-AdoServerTask -Name 'evaluatebranchProtection'
                 $definitionRef = if ($task) { @{ id = $task.id; name = $task.name; version = "$($task.version.major).$($task.version.minor).$($task.version.patch)" } }
                                  else { Write-MeridianWarn 'evaluatebranchProtection not listed by distributedtask/tasks; using documented id'; @{ id = '86b05a0c-73e6-4f7d-b3cf-e38f3b39a75b'; name = 'evaluatebranchProtection'; version = '0.0.1' } }
@@ -321,7 +337,7 @@ foreach ($e in $envDefs.environments) {
                     settings = @{
                         displayName   = 'Branch control'
                         definitionRef = $definitionRef
-                        inputs        = @{ allowedBranches = $c.allowedBranches; ensureProtectionOfBranch = ([bool]$c.ensureProtectionOfBranch).ToString().ToLower(); allowUnknownStatusBranch = 'false' }
+                        inputs        = $inputs
                         retryInterval = 0
                     }
                     resource = $resource
