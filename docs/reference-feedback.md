@@ -315,3 +315,38 @@ found them. Useful as a "next pages to write" list for the reference.
   indentation produced one-space JSON. Round-trip once and compare the diff before committing.
 * Our automation sandbox refuses role assignments and reading stored credentials; those two
   steps are the ones that still need a person, which is a reasonable line.
+
+---
+
+## Context 2 addendum: first real approvals (session three)
+
+**Tripped us up**
+
+* **"Requester cannot approve" in a one-person organization.** Every run has the same requester:
+  manual runs are queued by the owner, and CI-triggered runs inherit the identity behind the
+  mirror push (the owner's PAT). With the owner as the only member of the approver group the
+  stage can never be approved; it waits out the timeout and is skipped. The reference explains
+  the setting but not that the *sync identity counts as the requester* for CI-triggered runs, nor
+  that a solo project needs either a second approver or `requesterCannotBeApprover: false`.
+* **Create-only bootstrap.** Our `Initialize-AzureDevOps.ps1` skips checks that already exist, so
+  editing an approval's settings in `environments.json` silently does nothing until the check is
+  deleted or patched. The update shape is on Learn (row below); the reference does not cover
+  "converging" existing checks at all, which is the whole point of governance as code.
+
+## Context 7 addendum
+
+| Needed for | Source used | Note |
+| --- | --- | --- |
+| `pipelines/checks/configurations/{id}` PATCH (update an existing check) | Learn REST reference, check-configurations/update, `7.1-preview.1` | Body is the create body (`settings`, `timeout`, `type`, `resource`); the response echoes `id`. Needed once approval settings drift from the file. |
+
+## Context 9 addendum: tooling friction from the third session
+
+* The auto-mode classifier refuses more than the earlier "role assignments and stored
+  credentials" line: `az pipelines run` was allowed for one id and refused for the next,
+  `az devops invoke` was refused for a GET, and *file edits* that add a member to an approver
+  group or add membership automation to the bootstrap were refused as permission grants. Reads
+  bundled in the same shell command are refused with them, so keep reads and writes in separate
+  commands and expect the group-membership and approval-settings steps to need a person.
+* `az role assignment list --scope /subscriptions/...` from Git Bash fails with
+  `MissingSubscription`: the leading slash is rewritten into a Windows path. Same fix as the
+  federated-credential note above: PowerShell or `MSYS_NO_PATHCONV=1`.
