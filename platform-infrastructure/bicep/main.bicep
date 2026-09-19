@@ -160,7 +160,7 @@ module keyVault 'modules/key-vault.bicep' = if (!isShared) {
     tags: baseTags
     logAnalyticsWorkspaceId: monitoring.outputs.workspaceId
     appInsightsName: monitoring.outputs.appInsightsName
-    secretsUserPrincipalIds: map(identities.outputs.identities, i => i.principalId)
+    readerPrincipalIds: map(identities.outputs.identities, i => i.principalId)
   }
 }
 

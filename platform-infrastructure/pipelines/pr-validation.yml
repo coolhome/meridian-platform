@@ -6,7 +6,7 @@ resources:
   - repository: templates
     type: git
     name: Meridian/meridian-pipeline-templates
-    ref: refs/tags/v1.0.2
+    ref: refs/tags/v1.0.3
 
 variables:
 - name: Meridian.Component

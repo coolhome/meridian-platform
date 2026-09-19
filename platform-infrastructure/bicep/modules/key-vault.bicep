@@ -3,7 +3,7 @@ param location string
 param tags object
 param logAnalyticsWorkspaceId string
 param appInsightsName string
-param secretsUserPrincipalIds array
+param readerPrincipalIds array // principals granted Key Vault Secrets User
 
 var keyVaultSecretsUser = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')
 
@@ -45,7 +45,7 @@ resource appInsightsSecret 'Microsoft.KeyVault/vaults/secrets@2024-11-01' = {
 }
 
 resource secretsUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = [
-  for principalId in secretsUserPrincipalIds: {
+  for principalId in readerPrincipalIds: {
     name: guid(keyVault.id, principalId, keyVaultSecretsUser)
     scope: keyVault
     properties: {

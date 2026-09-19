@@ -43,6 +43,21 @@ resource storage 'Microsoft.Storage/storageAccounts@2025-01-01' = {
   }
 }
 
+resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2025-01-01' = {
+  parent: storage
+  name: 'default'
+  properties: {
+    deleteRetentionPolicy: {
+      enabled: true
+      days: 7
+    }
+    containerDeleteRetentionPolicy: {
+      enabled: true
+      days: 7
+    }
+  }
+}
+
 resource queueService 'Microsoft.Storage/storageAccounts/queueServices@2025-01-01' = {
   parent: storage
   name: 'default'

@@ -148,6 +148,23 @@ else {
     $null = Invoke-AdoRest -Method POST -Service feeds -ProjectScoped -Path 'packaging/feeds' -Body $feedBody -ApiVersion '7.1-preview.1'
     Write-MeridianOk 'created feed with public upstreams'
 }
+# A feed created through REST grants nothing to the project build service, yet every pipeline restores through the
+# feed (upstream packages are saved on first use) and platform-libraries publishes to it: Contributor covers both.
+$buildServiceName = "$($ctx.Project) Build Service ($($ctx.OrgName))"
+$buildService = @((Invoke-AdoRest -Service vssps -Path "identities?searchFilter=General&filterValue=$([uri]::EscapeDataString($buildServiceName))&queryMembership=None").value) |
+    Where-Object { $_.descriptor -like "*:Build:$($project.id)" } | Select-Object -First 1
+if (-not $buildService) { Write-MeridianWarn "identity '$buildServiceName' not found; grant Contributor on the feed by hand" }
+else {
+    $feedPath = "packaging/feeds/$($m.azureDevOps.artifactsFeed)/permissions"
+    $perms = @((Invoke-AdoRest -Service feeds -ProjectScoped -Path $feedPath -ApiVersion '7.1-preview.1').value)
+    $current = $perms | Where-Object { $_.identityDescriptor -eq $buildService.descriptor } | Select-Object -First 1
+    if ($current -and $current.role -in @('contributor', 'administrator')) { Write-MeridianInfo 'build service is a feed contributor' }
+    else {
+        $grant = ConvertTo-Json -InputObject @(@{ identityDescriptor = $buildService.descriptor; role = 'contributor' }) -AsArray -Compress
+        $null = Invoke-AdoRest -Method PATCH -Service feeds -ProjectScoped -Path $feedPath -Body $grant -ApiVersion '7.1-preview.1'
+        Write-MeridianOk 'build service granted Contributor on the feed'
+    }
+}
 
 # ---------------------------------------------------------------- service connections (WIF)
 if (-not $SkipServiceConnections) {

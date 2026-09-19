@@ -110,6 +110,7 @@ $script:InvokeRoutes = @(
     @{ Pattern = 'build/definitions/{definitionId}';                          Area = 'build';               Resource = 'definitions' }
     @{ Pattern = 'packaging/feeds';                                           Area = 'packaging';           Resource = 'feeds' }
     @{ Pattern = 'packaging/feeds/{feedId}';                                  Area = 'packaging';           Resource = 'feeds' }
+    @{ Pattern = 'packaging/feeds/{feedId}/permissions';                      Area = 'packaging';           Resource = 'permissions' }
     @{ Pattern = 'pipelines/environments';                                    Area = 'distributedtask';     Resource = 'environments' }
     @{ Pattern = 'pipelines/environments/{environmentId}';                    Area = 'distributedtask';     Resource = 'environments' }
     @{ Pattern = 'pipelines/checks/configurations';                           Area = 'PipelinesChecks';     Resource = 'configurations' }

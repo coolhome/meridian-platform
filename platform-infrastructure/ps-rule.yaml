@@ -27,6 +27,16 @@ rule:
     - Azure.Storage.Firewall
     - Azure.Cosmos.PublicAccess
     - Azure.ACR.Firewall
+    # Container Apps ingress is public by design for now (same private-endpoint follow-up as above).
+    - Azure.ContainerApp.PublicAccess
+    # Minimal-cost posture (ADR 0007): single-zone, locally redundant, Basic SKUs, no workspace replication.
+    - Azure.Storage.UseReplication
+    - Azure.ACR.MinSku
+    - Azure.ContainerApp.AvailabilityZone
+    - Azure.Log.Replication
+    # Services ingest telemetry with the connection string; switching ingestion to Entra ID auth is a
+    # service-side change (ADR 0006 follow-up), after which local auth can be disabled here.
+    - Azure.AppInsights.LocalAuth
 
 output:
   culture:

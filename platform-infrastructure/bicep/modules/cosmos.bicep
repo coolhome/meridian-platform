@@ -13,6 +13,7 @@ resource account 'Microsoft.DocumentDB/databaseAccounts@2024-11-15' = {
   properties: {
     databaseAccountOfferType: 'Standard'
     disableLocalAuth: true
+    disableKeyBasedMetadataWriteAccess: true
     minimalTlsVersion: 'Tls12'
     publicNetworkAccess: 'Enabled'
     enableAutomaticFailover: false
