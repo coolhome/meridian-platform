@@ -40,12 +40,11 @@ foreach ($g in $teams.securityGroups | Where-Object { $_.PSObject.Properties['by
         }
     }
 
-    $identity = Get-AdoIdentity -Name $g.name
-    if (-not $identity) { Write-MeridianWarn "identity for $($g.name) not resolvable yet"; continue }
+    # the graph descriptor (vssgp.*) is the subject the permission commands expect; IMS identities may carry none
     foreach ($repo in Get-MeridianMirroredRepos -Manifest $m) {
         $adoRepo = Get-AdoRepository -Name $repo.name
         if (-not $adoRepo) { Write-MeridianInfo "$($repo.name) not mirrored yet; skipped"; continue }
-        $null = Invoke-AzCli devops security permission update --namespace-id $gitNamespace --subject $identity.descriptor --token "repoV2/$($project.id)/$($adoRepo.id)" --allow-bit 128
+        $null = Invoke-AzCli devops security permission update --namespace-id $gitNamespace --subject $graph.descriptor --token "repoV2/$($project.id)/$($adoRepo.id)" --allow-bit 128
         Write-MeridianOk "bypass policies when pushing on $($repo.name)"
     }
 }

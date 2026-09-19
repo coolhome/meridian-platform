@@ -25,9 +25,11 @@ New-Item -ItemType Directory -Path $tmp -Force | Out-Null
 # Groups allowed to push straight to policed branches (the mirror sync). Git Repositories namespace,
 # bit 128 = "Bypass policies when pushing"; without it every mirror push fails with TF402455.
 $gitNamespace = '2e9eb7ed-3c0a-47d4-87c1-0ffdd275fd87'
+$graphGroups = @((Invoke-AzCli devops security group list --project $ctx.Project).graphGroups)
 $bypassGroups = @($teams.securityGroups | Where-Object { $_.PSObject.Properties['bypassPoliciesWhenPushing'] -and $_.bypassPoliciesWhenPushing } | ForEach-Object {
-    $id = Get-AdoIdentity -Name $_.name
-    if ($id) { $id } else { Write-MeridianWarn "group '$($_.name)' not found; bypass permission skipped" }
+    $name = $_.name
+    $g = $graphGroups | Where-Object { $_.displayName -eq $name } | Select-Object -First 1
+    if ($g) { $g } else { Write-MeridianWarn "group '$name' not found; bypass permission skipped" }
 })
 
 function Get-ExistingPolicies([string]$RepoId) {
@@ -80,7 +82,7 @@ foreach ($repo in Get-MeridianMirroredRepos -Manifest $m -Folders $Folders) {
 
     foreach ($g in $bypassGroups) {
         $null = Invoke-AzCli devops security permission update --namespace-id $gitNamespace --subject $g.descriptor --token "repoV2/$($project.id)/$repoId" --allow-bit 128
-        Write-MeridianOk "$($g.providerDisplayName) may bypass policies when pushing"
+        Write-MeridianOk "$($g.displayName) may bypass policies when pushing"
     }
 
     # --- repository-level policies ---
