@@ -28,6 +28,7 @@
       "mappedPath": "/docs"
     },
     "serviceConnections": {
+      "shared": "sc-meridian-shared",
       "dev": "sc-meridian-dev",
       "test": "sc-meridian-test",
       "prod": "sc-meridian-prod"
