@@ -350,3 +350,8 @@ found them. Useful as a "next pages to write" list for the reference.
 * `az role assignment list --scope /subscriptions/...` from Git Bash fails with
   `MissingSubscription`: the leading slash is rewritten into a Windows path. Same fix as the
   federated-credential note above: PowerShell or `MSYS_NO_PATHCONV=1`.
+* Later the same session: `az devops invoke` GETs of `pipelineschecks/configurations` were
+  allowed from PowerShell, a `PATCH` of the approval check was refused as weakening security,
+  and a second `az pipelines run` was refused as a retry of the first refusal. The practical
+  split is: the assistant reads and documents, a person changes approval settings and queues runs
+  unless an explicit allow rule exists for `az pipelines run`.
