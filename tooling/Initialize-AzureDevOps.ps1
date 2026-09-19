@@ -157,7 +157,8 @@ if (-not $buildService) { Write-MeridianWarn "identity '$buildServiceName' not f
 else {
     $feedPath = "packaging/feeds/$($m.azureDevOps.artifactsFeed)/permissions"
     $perms = @((Invoke-AdoRest -Service feeds -ProjectScoped -Path $feedPath -ApiVersion '7.1-preview.1').value)
-    $isBuildService = { $_.identityDescriptor -eq $buildService.descriptor -or $_.identityId -eq $buildService.id }
+    # entries carry identityId only when the list is requested with includeIds (StrictMode: read the property defensively)
+    $isBuildService = { $_.identityDescriptor -eq $buildService.descriptor -or ($_.PSObject.Properties['identityId'] -and $_.identityId -eq $buildService.id) }
     $current = $perms | Where-Object $isBuildService | Select-Object -First 1
     if ($current -and $current.role -in @('contributor', 'administrator')) { Write-MeridianInfo 'build service is a feed contributor' }
     else {

@@ -10,11 +10,16 @@ parameters:
   type: object
   default: {}
 
+# Deployment jobs are authorized before stage variables expand, so the image is a compile-time value, not $(Meridian.VmImage).
+- name: vmImage
+  type: string
+  default: ubuntu-24.04
+
 jobs:
 - deployment: Deploy
   displayName: Deploy ${{ parameters.serviceName }} to ${{ parameters.environment }}
   pool:
-    vmImage: $(Meridian.VmImage)
+    vmImage: ${{ parameters.vmImage }}
   environment: ${{ parameters.environment }}
   variables:
   - name: Meridian.StaticWebApp

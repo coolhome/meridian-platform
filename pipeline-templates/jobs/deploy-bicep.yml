@@ -18,11 +18,16 @@ parameters:
   type: string
   default: ''
 
+# Deployment jobs are authorized before stage variables expand, so the image is a compile-time value, not $(Meridian.VmImage).
+- name: vmImage
+  type: string
+  default: ubuntu-24.04
+
 jobs:
 - deployment: Deploy
   displayName: Deploy ${{ parameters.name }} to ${{ parameters.environment }}
   pool:
-    vmImage: $(Meridian.VmImage)
+    vmImage: ${{ parameters.vmImage }}
   environment: ${{ parameters.environment }}
   strategy:
     runOnce:

@@ -26,6 +26,8 @@ ENV DOTNET_CLI_TELEMETRY_OPTOUT=1 \
     POWERSHELL_TELEMETRY_OPTOUT=1 \
     PATH="${PATH}:/opt/dotnet-tools"
 
+# Pipes inside RUN must fail on the first broken command (hadolint DL4006).
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # hadolint ignore=DL3008
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates curl git gnupg jq unzip \
