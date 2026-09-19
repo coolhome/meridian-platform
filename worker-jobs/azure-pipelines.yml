@@ -15,7 +15,7 @@ resources:
   - repository: templates
     type: git
     name: Meridian/meridian-pipeline-templates
-    ref: refs/tags/v1.0.0
+    ref: refs/tags/v1.0.1
   pipelines:
   - pipeline: platformLibraries
     source: platform-libraries-cicd
@@ -58,7 +58,7 @@ extends:
     # No ingress: nothing to smoke over HTTP and no traffic to shift, so prod uses runOnce.
     smokePath: ''
     prodStrategy: runOnce
+    # test and prod return here once their service connections exist (environments.json still has placeholders);
+    # every listed environment is validated at queue time, so an unprovisioned one fails the whole run.
     environments:
     - dev
-    - test
-    - prod

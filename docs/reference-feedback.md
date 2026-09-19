@@ -355,3 +355,32 @@ found them. Useful as a "next pages to write" list for the reference.
   and a second `az pipelines run` was refused as a retry of the first refusal. The practical
   split is: the assistant reads and documents, a person changes approval settings and queues runs
   unless an explicit allow rule exists for `az pipelines run`.
+
+---
+
+## Context 5 addendum: the first deploy attempt (session three)
+
+**Tripped us up**
+
+* **Service connection names must be known at compile time.** Our job templates passed
+  `$(Meridian.ServiceConnection)` (a stage-scoped variable template value) into
+  `azureSubscription` / `connectedServiceNameARM`. Queue-time validation failed on every deploy
+  job with "service connection $(Meridian.ServiceConnection) could not be found" because
+  authorization runs before macro variables expand. `sc-meridian-${{ parameters.environment }}`
+  in the job templates fixed it. The reference's service-connection page covers the endpoint
+  shapes but not this rule, which is the first thing a template author hits.
+* **Every listed environment is validated at queue time.** With compile-time names, a consumer
+  that lists `test` and `prod` fails outright while those service connections do not exist,
+  even though the stages would never be reached. Consumers now list only provisioned
+  environments; the placeholder rows in `environments.json` are the signal.
+* **A template fix means a tag bump, and the tag bump touches three places**: the tag itself,
+  `allowedTemplateRefs` in the manifest, and the required-template check on every environment.
+  We automated the first (the sync creates a declared tag at the split commit, never moving an
+  existing one) and the third (the bootstrap patches the check when the ref list changes).
+  Worth a reference page: "shipping a template change under a required-template check".
+
+**Helpful**
+
+* The `az devops invoke` area for checks is `pipelineschecks` / `configurations`;
+  `--query-parameters '$expand=settings'` returns the settings, and `PATCH` with the create body
+  plus `id` updates a check in place (verified on approval and required-template checks).
