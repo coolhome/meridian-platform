@@ -276,7 +276,12 @@ function Get-AdoIdentity {
     if ($Name -notmatch '^\[') { $candidates += "[$($ctx.Project)]\$Name" }
     foreach ($c in $candidates) {
         $res = Invoke-AdoRest -Service vssps -Path "identities?searchFilter=General&filterValue=$([uri]::EscapeDataString($c))&queryMembership=None"
-        $hit = @($res.value | Where-Object { $_.providerDisplayName -eq $c -or $_.customDisplayName -eq $c -or $_.providerDisplayName -like "*\$Name" }) | Select-Object -First 1
+        # identities omit customDisplayName unless one is set, so read properties defensively (StrictMode)
+        $hit = @($res.value | Where-Object {
+            $pdn = if ($_.PSObject.Properties['providerDisplayName']) { $_.providerDisplayName } else { $null }
+            $cdn = if ($_.PSObject.Properties['customDisplayName']) { $_.customDisplayName } else { $null }
+            $pdn -eq $c -or $cdn -eq $c -or $pdn -like "*\$Name"
+        }) | Select-Object -First 1
         if ($hit) { return $hit }
     }
     return $null

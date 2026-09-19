@@ -62,13 +62,27 @@ foreach ($g in $teams.securityGroups) {
 
 # ---------------------------------------------------------------- area paths + teams
 Write-MeridianStep 'area paths and teams'
+# `az boards area project show` takes an id, not a path, so walk the tree once and compare paths.
+function Get-AreaPaths {
+    $set = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    $stack = [System.Collections.Stack]::new()
+    $stack.Push((Invoke-AzCli boards area project list --depth 20))
+    while ($stack.Count -gt 0) {
+        $node = $stack.Pop()
+        if (-not $node) { continue }
+        if ($node.PSObject.Properties['path'] -and $node.path) { $null = $set.Add($node.path) }
+        if ($node.PSObject.Properties['children'] -and $node.children) { foreach ($c in $node.children) { $stack.Push($c) } }
+    }
+    return $set
+}
+$areaPaths = Get-AreaPaths
 foreach ($ap in $teams.areaPaths) {
     $parts = $ap.Split('\')
     $name = $parts[-1]
     $parentPath = '\' + $ctx.Project + '\Area' + $(if ($parts.Count -gt 1) { '\' + ($parts[0..($parts.Count - 2)] -join '\') } else { '' })
-    $existing = Invoke-AzCli boards area project show --path "$parentPath\$name" -AllowFailure
-    if ($existing) { continue }
+    if ($areaPaths.Contains("$parentPath\$name")) { continue }
     $null = Invoke-AzCli boards area project create --name $name --path $parentPath
+    $null = $areaPaths.Add("$parentPath\$name")
     Write-MeridianOk "area $ap"
 }
 $existingTeams = @(Invoke-AzCli devops team list --project $ctx.Project)
@@ -196,16 +210,17 @@ foreach ($e in $envDefs.environments | Where-Object { $_.PSObject.Properties['az
         if (-not (Get-AdoVariableGroup -Name $kvName)) {
             $sc = Get-AdoServiceEndpoint -Name $e.serviceConnection
             if ($sc) {
+                # The service rejects an empty mapping, so seed it with the secret platform-infrastructure always writes.
                 $kvBody = @{
                     name                           = $kvName
                     description                    = "Key Vault-linked secrets for $($e.name)"
                     type                           = 'AzureKeyVault'
-                    providerData                   = @{ serviceEndpointId = $sc.id; vault = $e.keyVaultName }
-                    variables                      = @{}
+                    providerData                   = @{ serviceEndpointId = $sc.id; vault = $e.keyVaultName; lastRefreshedOn = [DateTime]::UtcNow.ToString('o') }
+                    variables                      = @{ 'appinsights-connection-string' = @{ enabled = $true; isSecret = $true; contentType = ''; value = $null } }
                     variableGroupProjectReferences = @(@{ projectReference = @{ id = $project.id; name = $ctx.Project }; name = $kvName })
                 }
                 $null = Invoke-AdoRest -Method POST -ProjectScoped -Path 'distributedtask/variablegroups' -Body $kvBody -ApiVersion '7.1-preview.2'
-                Write-MeridianOk "created Key Vault-linked group $kvName (map secrets in the Library UI or by PUT)"
+                Write-MeridianOk "created Key Vault-linked group $kvName (add further secrets in the Library UI or by PUT)"
             }
         }
     }
@@ -229,9 +244,15 @@ foreach ($e in $envDefs.environments) {
                 foreach ($g in $c.approvers) { $id = Get-AdoIdentity -Name $g; if ($id) { $approvers += @{ id = $id.id } } else { Write-MeridianWarn "approver '$g' not found" } }
                 if ($approvers.Count -eq 0) { Write-MeridianWarn "approval on $($e.name) skipped: no approvers resolved"; continue }
                 if ($existingChecks | Where-Object { $_.type.name -eq 'Approval' }) { Write-MeridianInfo "approval exists on $($e.name)"; continue }
+                # A group is one approver entry; the service caps minRequiredApprovers at the entry count.
+                $minRequired = [int]$c.minRequired
+                if ($minRequired -gt $approvers.Count) {
+                    Write-MeridianWarn "approval on $($e.name): minRequired $minRequired exceeds the $($approvers.Count) approver entr$(if ($approvers.Count -eq 1) { 'y' } else { 'ies' }); clamped. List individual users to require more than one approval."
+                    $minRequired = $approvers.Count
+                }
                 $body = @{
                     type     = $envDefs.checkTypes.approval
-                    settings = @{ approvers = $approvers; executionOrder = 'anyOrder'; minRequiredApprovers = $c.minRequired; instructions = $c.instructions; blockedApprovers = @(); requesterCannotBeApprover = [bool]$c.requesterCannotApprove }
+                    settings = @{ approvers = $approvers; executionOrder = 'anyOrder'; minRequiredApprovers = $minRequired; instructions = $c.instructions; blockedApprovers = @(); requesterCannotBeApprover = [bool]$c.requesterCannotApprove }
                     resource = $resource
                     timeout  = [int]$c.timeoutMinutes
                 }
@@ -255,7 +276,7 @@ foreach ($e in $envDefs.environments) {
                 if ($existingChecks | Where-Object { $_.type.name -eq 'Task Check' -and $_.settings.definitionRef.name -ieq 'evaluatebranchProtection' }) { Write-MeridianInfo "branch control exists on $($e.name)"; continue }
                 $task = Get-AdoServerTask -Name 'evaluatebranchProtection'
                 $definitionRef = if ($task) { @{ id = $task.id; name = $task.name; version = "$($task.version.major).$($task.version.minor).$($task.version.patch)" } }
-                                 else { Write-MeridianWarn 'evaluatebranchProtection not listed by distributedtask/tasks; using documented id'; @{ id = '86b05a0c-73e6-4f7d-b3cf-e38fd5057eca'; name = 'evaluatebranchProtection'; version = '0.0.1' } }
+                                 else { Write-MeridianWarn 'evaluatebranchProtection not listed by distributedtask/tasks; using documented id'; @{ id = '86b05a0c-73e6-4f7d-b3cf-e38f3b39a75b'; name = 'evaluatebranchProtection'; version = '0.0.1' } }
                 $body = @{
                     type     = $envDefs.checkTypes.taskCheck
                     settings = @{
