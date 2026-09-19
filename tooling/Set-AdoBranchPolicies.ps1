@@ -130,7 +130,7 @@ foreach ($repo in Get-MeridianMirroredRepos -Manifest $m -Folders $Folders) {
             if (-not $def) { Write-MeridianWarn "pipeline $($pipeline.name) not created yet; run New-AdoPipelines.ps1 then rerun"; continue }
             $found = Find-Policy $existing 'Build' $branch { param($p) $p.settings.buildDefinitionId -eq $def.id }
             $bvArgs = @('--blocking', 'true', '--enabled', 'true', '--build-definition-id', $def.id, '--display-name', $bv.displayName, '--queue-on-source-update-only', $bv.queueOnSourceUpdateOnly.ToString().ToLower(), '--manual-queue-only', $bv.manualQueueOnly.ToString().ToLower(), '--valid-duration', $bv.validDurationMinutes)
-            if ($bv.pathFilter) { $bvArgs += @('--path-filter', $bv.pathFilter) }
+            if ($bv.pathFilter) { $bvArgs += "--path-filter=$($bv.pathFilter)" }   # '=' form: pwsh on Linux glob-expands a bare /* against the filesystem
             if ($found) { $null = Invoke-AzCli repos policy build update --id $found.id @bvArgs } else { $null = Invoke-AzCli repos policy build create --repository-id $repoId @bArgs @bvArgs }
         }
 
@@ -140,7 +140,7 @@ foreach ($repo in Get-MeridianMirroredRepos -Manifest $m -Folders $Folders) {
             if (-not $identity) { Write-MeridianWarn "group '$($rr.group)' not found; required reviewer skipped"; continue }
             $paths = ($rr.pathFilters -join ';')
             $found = Find-Policy $existing 'Required reviewers' $branch { param($p) ($p.settings.requiredReviewerIds -contains $identity.id) -and (($p.settings.filenamePatterns -join ';') -eq $paths) }
-            $rrArgs = @('--blocking', 'true', '--enabled', 'true', '--required-reviewer-ids', $identity.id, '--message', $rr.message, '--path-filter', $paths)
+            $rrArgs = @('--blocking', 'true', '--enabled', 'true', '--required-reviewer-ids', $identity.id, '--message', $rr.message, "--path-filter=$paths")
             if ($found) { $null = Invoke-AzCli repos policy required-reviewer update --id $found.id @rrArgs } else { $null = Invoke-AzCli repos policy required-reviewer create --repository-id $repoId @bArgs @rrArgs }
             if ($rr.minimumApproverCount -gt 1) {
                 # the CLI has no minimum count for required reviewers; set it through the REST config
