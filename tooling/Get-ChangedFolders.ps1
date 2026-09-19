@@ -33,7 +33,8 @@ else {
     $set = [System.Collections.Generic.HashSet[string]]::new()
     foreach ($path in $changed) {
         $top = $path.Split('/')[0]
-        if ($path -like "$($m.governance.overlay)/*" -or $path -eq 'repos.manifest.json' -or $path -like 'governance/policies/*' -or $path -like 'governance/environments/*') {
+        # A tooling change re-applies the control plane too, otherwise a fix to the bootstrap never runs until governance moves.
+        if ($path -like "$($m.governance.overlay)/*" -or $path -eq 'repos.manifest.json' -or $path -like 'governance/policies/*' -or $path -like 'governance/environments/*' -or $path -like 'tooling/*') {
             $governanceChanged = $true
             foreach ($f in $mirrored) { $null = $set.Add($f) }
         }
