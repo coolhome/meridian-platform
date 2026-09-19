@@ -267,3 +267,51 @@ found them. Useful as a "next pages to write" list for the reference.
   is a 400 (surfaced as 500 through the exception handler). Use `bool?`.
 * Microsoft.Azure.Cosmos 3.63 refuses to build without an explicit `Newtonsoft.Json`
   reference (or an opt-out property).
+
+---
+
+## Context 10: Running the bootstrap for real against a Microsoft-account organization
+
+**Helpful**
+
+* The reference's insistence that checks bind to *environments* and that only `deployment:`
+  jobs consume them held up exactly: the bootstrap created 5 environments and 11 checks
+  without a single pipeline existing yet, which is the order we wanted.
+* The integrating page's `X-TFS-FedAuthRedirect: Suppress` advice is what made the auth failure
+  (`TF400813` on an Entra token) fail loudly instead of returning a sign-in page.
+
+**Tripped us up**
+
+* **Branch control task id.** The widely copied `86b05a0c-73e6-4f7d-b3cf-e38fd5057eca` is wrong;
+  the service answers `No task definition found for ID`. The id the Terraform provider ships,
+  `86b05a0c-73e6-4f7d-b3cf-e38f3b39a75b`, works with version `0.0.1`. Neither id appears in
+  `distributedtask/tasks` (the business-hours task `445fde2f-...` is accepted although unlisted
+  too), so resolving check tasks by name at runtime is not possible; keep the ids in the
+  governance file.
+* **Key Vault-linked variable group.** Two undocumented requirements: `variables` cannot be
+  empty (we seed `appinsights-connection-string`, which platform-infrastructure always writes)
+  and `providerData.lastRefreshedOn` must be a valid timestamp.
+* **Approval `minRequiredApprovers`.** Capped at the number of approver *entries*; a group is
+  one entry, so "two release managers" cannot be expressed with a single group.
+* **`az boards area project show`** takes `--id`, not `--path`. Listing the tree once and
+  comparing paths is the idempotent check.
+
+**Wish it had**
+
+* A page on running the control-plane automation *without a PAT*: `az devops invoke`
+  (`--api-version 7.1-preview`, `--in-file` for bodies, `continuation_token` injected into
+  every response, empty property names in `distributedtask/tasks`) versus `Invoke-RestMethod`,
+  and the fact that git to Azure Repos has no non-interactive path on a Microsoft-account
+  organization other than a PAT.
+
+---
+
+## Context 9 addendum: tooling friction from the second session
+
+* Git Bash path conversion rewrote the federated-credential subject `/eid1/c/pub/...` into
+  `C:/Program Files/Git/eid1/...`. Run `az identity federated-credential` from PowerShell or
+  with `MSYS_NO_PATHCONV=1`, then verify the subject with `-o tsv --query subject`.
+* `ConvertTo-Json` already indents with two spaces in PowerShell 7; a "fix" that halved the
+  indentation produced one-space JSON. Round-trip once and compare the diff before committing.
+* Our automation sandbox refuses role assignments and reading stored credentials; those two
+  steps are the ones that still need a person, which is a reasonable line.
