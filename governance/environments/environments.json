@@ -55,7 +55,8 @@
             "Platform Engineering"
           ],
           "minRequired": 1,
-          "requesterCannotApprove": true,
+          "requesterCannotApprove": false,
+          "$comment": "false because one person is both the only Platform Engineering member and the requester of every run (manual runs and mirror-triggered runs alike); with true the shared stage could never be approved. Set it back to true once a second approver exists. The bootstrap only creates checks, so the live check (id 85) was changed by hand on 2026-09-19 to match.",
           "timeoutMinutes": 1440,
           "instructions": "Shared resources affect every environment."
         }
