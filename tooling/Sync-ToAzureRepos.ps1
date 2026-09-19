@@ -48,6 +48,7 @@ try {
     $summary = New-Object System.Collections.Generic.List[object]
     foreach ($repo in Get-MeridianMirroredRepos -Manifest $m -Folders $Folders) {
         Write-MeridianStep "$($repo.folder) -> $($repo.name)"
+        $defaultSplit = $null
         $url = Get-AdoRepoRemoteUrl -Manifest $m -RepoName $repo.name
         if (-not $DryRun) { $null = New-AdoRepositoryIfMissing -Name $repo.name }
 
@@ -55,6 +56,7 @@ try {
             $split = & git subtree split --prefix=$($repo.folder) $branch 2>$null
             if ($LASTEXITCODE -ne 0 -or -not $split) { Write-MeridianWarn "no commits for $($repo.folder) on $branch; skipped"; continue }
             $split = ($split | Select-Object -Last 1).Trim()
+            if ($branch -eq $m.azureDevOps.defaultBranch) { $defaultSplit = $split }
             $refspec = "${split}:refs/heads/$branch"
             $pushArgs = @(Get-GitConfigArgs -AuthHeader $authHeader) + @('push')
             if ($Force) { $pushArgs += '--force' }
@@ -73,6 +75,19 @@ try {
         }
         if (-not $DryRun -and $resolved -contains $m.azureDevOps.defaultBranch) {
             $null = Invoke-AzCli repos update --repository $repo.name --default-branch $m.azureDevOps.defaultBranch -AllowFailure
+        }
+        # Template tags come from the manifest (allowedTemplateRefs). A missing tag is created at the split commit of the
+        # default branch in the same sync that carries the change; an existing tag is never moved, because consumers pin
+        # to it and the required-template check trusts it. Declare a new version to change what consumers get.
+        if (-not $DryRun -and $repo.name -eq $m.azureDevOps.templatesRepository -and $defaultSplit) {
+            $gitArgs = @(Get-GitConfigArgs -AuthHeader $authHeader)
+            $remoteTags = @(& git @gitArgs ls-remote --tags $url 2>$null | ForEach-Object { ($_ -split "`t")[1] } | Where-Object { $_ -and $_ -notlike '*^{}' })
+            foreach ($ref in @($m.azureDevOps.allowedTemplateRefs | Where-Object { $_ -like 'refs/tags/*' })) {
+                if ($remoteTags -contains $ref) { Write-MeridianInfo "$ref exists on $($repo.name)"; continue }
+                & git @gitArgs push $url "${defaultSplit}:$ref" 2>&1 | ForEach-Object { Write-MeridianInfo $_ }
+                if ($LASTEXITCODE -ne 0) { throw "tag push $ref to $($repo.name) failed" }
+                Write-MeridianOk "tagged $($defaultSplit.Substring(0,10)) as $ref on $($repo.name)"
+            }
         }
     }
     Write-Host ''

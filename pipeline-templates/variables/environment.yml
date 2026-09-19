@@ -9,6 +9,10 @@ variables:
 - group: meridian-${{ parameters.environment }}
 - name: Meridian.Environment
   value: ${{ parameters.environment }}
+# Kept for scripts and display only. Task inputs that name a service connection (azureSubscription,
+# connectedServiceNameARM) must use the compile-time form sc-meridian-${{ parameters.environment }}
+# directly (see jobs/*): Azure Pipelines authorizes service connections before macro variables expand,
+# so $(Meridian.ServiceConnection) fails validation with "service connection ... could not be found".
 - name: Meridian.ServiceConnection
   value: sc-meridian-${{ parameters.environment }}
 - name: Meridian.ResourceGroup.Platform

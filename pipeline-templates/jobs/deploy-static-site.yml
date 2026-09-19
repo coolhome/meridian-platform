@@ -34,7 +34,7 @@ jobs:
             fetchDepth: 1
         - template: ../steps/bicep-deploy.yml
           parameters:
-            serviceConnection: $(Meridian.ServiceConnection)
+            serviceConnection: sc-meridian-${{ parameters.environment }}
             scope: resourceGroup
             resourceGroup: $(Meridian.ResourceGroup.Apps)
             templatePath: $(Meridian.InfraTemplate)
@@ -43,7 +43,7 @@ jobs:
         - task: AzureCLI@2
           displayName: Read deployment token
           inputs:
-            azureSubscription: $(Meridian.ServiceConnection)
+            azureSubscription: sc-meridian-${{ parameters.environment }}
             scriptType: bash
             scriptLocation: inlineScript
             inlineScript: |

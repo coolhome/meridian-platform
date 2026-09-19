@@ -45,7 +45,7 @@ jobs:
               fetchDepth: 1
           - template: ../steps/bicep-deploy.yml
             parameters:
-              serviceConnection: $(Meridian.ServiceConnection)
+              serviceConnection: sc-meridian-${{ parameters.environment }}
               scope: resourceGroup
               resourceGroup: $(Meridian.ResourceGroup.Apps)
               templatePath: $(Meridian.InfraTemplate)
@@ -60,7 +60,7 @@ jobs:
             - task: AzureCLI@2
               displayName: Wait for healthy replicas
               inputs:
-                azureSubscription: $(Meridian.ServiceConnection)
+                azureSubscription: sc-meridian-${{ parameters.environment }}
                 scriptType: bash
                 scriptLocation: inlineScript
                 inlineScript: |
@@ -92,7 +92,7 @@ jobs:
             displayName: Capture current revision
             name: current
             inputs:
-              azureSubscription: $(Meridian.ServiceConnection)
+              azureSubscription: sc-meridian-${{ parameters.environment }}
               scriptType: bash
               scriptLocation: inlineScript
               inlineScript: |
@@ -105,7 +105,7 @@ jobs:
               APP: $(Meridian.ContainerApp)
           - template: ../steps/bicep-deploy.yml
             parameters:
-              serviceConnection: $(Meridian.ServiceConnection)
+              serviceConnection: sc-meridian-${{ parameters.environment }}
               scope: resourceGroup
               resourceGroup: $(Meridian.ResourceGroup.Apps)
               templatePath: $(Meridian.InfraTemplate)
@@ -118,7 +118,7 @@ jobs:
           - task: AzureCLI@2
             displayName: Wait for revision r$(Build.BuildId)
             inputs:
-              azureSubscription: $(Meridian.ServiceConnection)
+              azureSubscription: sc-meridian-${{ parameters.environment }}
               scriptType: bash
               scriptLocation: inlineScript
               inlineScript: |
@@ -141,7 +141,7 @@ jobs:
           - task: AzureCLI@2
             displayName: Route $(strategy.increment)% to r$(Build.BuildId)
             inputs:
-              azureSubscription: $(Meridian.ServiceConnection)
+              azureSubscription: sc-meridian-${{ parameters.environment }}
               scriptType: bash
               scriptLocation: inlineScript
               inlineScript: |
@@ -175,7 +175,7 @@ jobs:
             - task: AzureCLI@2
               displayName: Roll back traffic
               inputs:
-                azureSubscription: $(Meridian.ServiceConnection)
+                azureSubscription: sc-meridian-${{ parameters.environment }}
                 scriptType: bash
                 scriptLocation: inlineScript
                 inlineScript: |
@@ -197,7 +197,7 @@ jobs:
             - task: AzureCLI@2
               displayName: Promote r$(Build.BuildId) to 100%
               inputs:
-                azureSubscription: $(Meridian.ServiceConnection)
+                azureSubscription: sc-meridian-${{ parameters.environment }}
                 scriptType: bash
                 scriptLocation: inlineScript
                 inlineScript: |

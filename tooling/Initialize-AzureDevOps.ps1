@@ -275,11 +275,21 @@ foreach ($e in $envDefs.environments) {
             }
             'requiredTemplate' {
                 if (-not $tplRepo) { Write-MeridianWarn 'templates repo not mirrored yet; required template check deferred (rerun after Sync-ToAzureRepos.ps1)'; continue }
-                if ($existingChecks | Where-Object { $_.type.name -eq 'ExtendsCheck' }) { Write-MeridianInfo "required template exists on $($e.name)"; continue }
                 $extends = foreach ($ref in $m.azureDevOps.allowedTemplateRefs) {
                     foreach ($t in $envDefs.requiredTemplates) {
                         @{ repositoryType = 'git'; repositoryName = "$($ctx.Project)/$($m.azureDevOps.templatesRepository)"; repositoryRef = $ref; templatePath = $t }
                     }
+                }
+                $existing = $existingChecks | Where-Object { $_.type.name -eq 'ExtendsCheck' } | Select-Object -First 1
+                if ($existing) {
+                    # The allowed refs change with every template tag; the service keeps the old list unless it is updated.
+                    $want = @($extends | ForEach-Object { "$($_.repositoryName)|$($_.repositoryRef)|$($_.templatePath)" } | Sort-Object)
+                    $have = @($existing.settings.extendsChecks | ForEach-Object { "$($_.repositoryName)|$($_.repositoryRef)|$($_.templatePath)" } | Sort-Object)
+                    if (-not (Compare-Object $want $have)) { Write-MeridianInfo "required template exists on $($e.name)"; continue }
+                    $update = @{ id = $existing.id; type = @{ id = $existing.type.id; name = $existing.type.name }; settings = @{ extendsChecks = @($extends) }; resource = $resource; timeout = $existing.timeout }
+                    $null = Invoke-AdoRest -Method PATCH -ProjectScoped -Path "pipelines/checks/configurations/$($existing.id)" -Body $update -ApiVersion '7.1-preview.1'
+                    Write-MeridianOk "required template on $($e.name) now lists $($m.azureDevOps.allowedTemplateRefs -join ', ')"
+                    continue
                 }
                 $body = @{ type = $envDefs.checkTypes.extendsCheck; settings = @{ extendsChecks = @($extends) }; resource = $resource; timeout = 1440 }
             }

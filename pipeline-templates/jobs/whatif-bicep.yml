@@ -31,7 +31,7 @@ jobs:
       fetchDepth: 1
   - template: ../steps/bicep-deploy.yml
     parameters:
-      serviceConnection: $(Meridian.ServiceConnection)
+      serviceConnection: sc-meridian-${{ parameters.environment }}
       scope: ${{ parameters.scope }}
       resourceGroup: ${{ parameters.resourceGroup }}
       templatePath: ${{ parameters.templatePath }}
