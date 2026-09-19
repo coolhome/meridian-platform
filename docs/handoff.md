@@ -1,3 +1,5 @@
+> Superseded by [handoff-2.md](handoff-2.md) (2026-09-19, end of session two). Step 4 (local stack) below is still current.
+
 # Handoff: state of the Meridian rollout (2026-09-19, second session)
 
 Read this first when continuing in a new session. Everything below was verified in the
