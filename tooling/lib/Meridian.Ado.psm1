@@ -362,7 +362,8 @@ function ConvertTo-AdoBranchArgs {
 
 function Get-GitAuthHeader {
     <# Value for git -c http.extraheader=... so the PAT never appears in a remote URL. #>
-    param([string]$Pat = $env:AZDO_PAT)
+    param([string]$Pat)
+    if (-not $Pat) { $Pat = $env:AZDO_PAT }   # callers pass '' for an unbound [string] parameter, which ?? does not treat as null
     if (-not $Pat) {
         Write-MeridianWarn 'no AZDO_PAT: git will authenticate through its credential helper (Git Credential Manager prompts in a browser the first time)'
         return $null
