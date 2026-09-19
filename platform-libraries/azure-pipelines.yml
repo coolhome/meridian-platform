@@ -15,7 +15,7 @@ resources:
   - repository: templates
     type: git
     name: Meridian/meridian-pipeline-templates
-    ref: refs/tags/v1.0.0
+    ref: refs/tags/v1.0.1
 
 variables:
 - name: Meridian.Component
@@ -31,7 +31,7 @@ extends:
       templatePath: infra/queues.bicep
       parametersPattern: infra/params/{env}.bicepparam
       resourceGroupPattern: rg-mrd-{env}-data
+    # test and prod return here once their service connections exist (environments.json still has placeholders);
+    # every listed environment is validated at queue time, so an unprovisioned one fails the whole run.
     environments:
     - dev
-    - test
-    - prod
