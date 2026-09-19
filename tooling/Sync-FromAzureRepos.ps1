@@ -26,7 +26,8 @@ $url = Get-AdoRepoRemoteUrl -Manifest $m -RepoName $repo.name
 Push-Location $m.RootPath
 try {
     if (& git status --porcelain) { throw 'Working tree must be clean before a subtree pull.' }
-    & git -c "http.extraheader=$authHeader" subtree pull --prefix=$Folder $url $Branch --squash -m "chore($Folder): back-port $Branch from Azure Repos $($repo.name)"
+    $gitCfg = @(Get-GitConfigArgs -AuthHeader $authHeader)
+    & git @gitCfg subtree pull --prefix=$Folder $url $Branch --squash -m "chore($Folder): back-port $Branch from Azure Repos $($repo.name)"
     if ($LASTEXITCODE -ne 0) { throw 'subtree pull failed; resolve conflicts and commit.' }
     Write-MeridianOk "back-ported $($repo.name)/$Branch into $Folder. Open a PR; the next sync pushes the merge back."
 }

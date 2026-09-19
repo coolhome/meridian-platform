@@ -7,7 +7,7 @@ ARG VCS_REF=unknown
 LABEL org.opencontainers.image.title="meridian/services/worker-jobs" \
       org.opencontainers.image.version="${APP_VERSION}" \
       org.opencontainers.image.revision="${VCS_REF}" \
-      org.opencontainers.image.source="https://dev.azure.com/CHANGE-ME/Meridian/_git/meridian-worker-jobs" \
+      org.opencontainers.image.source="https://dev.azure.com/coolhome/Meridian/_git/meridian-worker-jobs" \
       meridian.service="worker-jobs"
 
 WORKDIR /app

@@ -4,7 +4,7 @@
     Registers the base-image ACR Task against the Azure Repos mirror of this repository,
     with base-image-update triggers on. Run once per registry by Platform Engineering.
 .EXAMPLE
-    pwsh scripts/Register-AcrTasks.ps1 -Registry acrmrdshared -RepoUrl https://dev.azure.com/CHANGE-ME/Meridian/_git/meridian-containers -Pat $env:AZDO_PAT
+    pwsh scripts/Register-AcrTasks.ps1 -Registry acrmrdshared -RepoUrl https://dev.azure.com/coolhome/Meridian/_git/meridian-containers -Pat $env:AZDO_PAT
 #>
 [CmdletBinding()]
 param(

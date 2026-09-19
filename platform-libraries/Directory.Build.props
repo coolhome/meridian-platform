@@ -19,7 +19,7 @@
     <Product>Meridian Approval Platform</Product>
     <Copyright>Meridian</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://dev.azure.com/CHANGE-ME/Meridian/_git/meridian-platform-libraries</PackageProjectUrl>
+    <PackageProjectUrl>https://dev.azure.com/coolhome/Meridian/_git/meridian-platform-libraries</PackageProjectUrl>
     <RepositoryType>git</RepositoryType>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>

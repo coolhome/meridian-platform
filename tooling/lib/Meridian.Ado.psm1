@@ -10,6 +10,8 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $script:Ctx = $null
+$script:PolicyTypes = $null
+$script:ServerTasks = $null
 
 function Write-MeridianStep { param([string]$Message) Write-Host "`n==> $Message" -ForegroundColor Cyan }
 function Write-MeridianOk { param([string]$Message) Write-Host "    ok   $Message" -ForegroundColor Green }
@@ -59,28 +61,136 @@ function Connect-MeridianAdo {
     [CmdletBinding()]
     param([Parameter(Mandatory)]$Manifest, [string]$Pat)
     if (-not $Pat) { $Pat = $env:AZDO_PAT }
-    if (-not $Pat) {
-        throw 'Provide -Pat or set AZDO_PAT. Scopes: Code (read, write, manage), Build (read, execute, manage), Project and Team (read, write), Environment (read, manage), Service Connections (read, query, manage), Variable Groups (read, create, manage), Graph (read, manage), Identity (read), Wiki (read, write), Packaging (read, write, manage), Work Items (read, write), Security (manage).'
-    }
-    $env:AZURE_DEVOPS_EXT_PAT = $Pat
+    $env:PYTHONIOENCODING = 'utf-8'   # az devops otherwise drops non-cp1252 characters from JSON output on Windows
     $null = & az extension show --name azure-devops --only-show-errors 2>$null
     if ($LASTEXITCODE -ne 0) {
         Write-MeridianInfo 'Installing azure-devops CLI extension'
         & az extension add --name azure-devops --only-show-errors | Out-Null
     }
     & az devops configure --defaults "organization=$($Manifest.azureDevOps.organizationUrl)" "project=$($Manifest.azureDevOps.project)" | Out-Null
-    $basic = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(":$Pat"))
+    $orgName = ($Manifest.azureDevOps.organizationUrl -replace '^https://dev\.azure\.com/', '').Trim('/')
+    if ($Pat) {
+        $env:AZURE_DEVOPS_EXT_PAT = $Pat
+        $basic = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(":$Pat"))
+        $script:Ctx = [pscustomobject]@{
+            OrgUrl  = $Manifest.azureDevOps.organizationUrl
+            OrgName = $orgName
+            Project = $Manifest.azureDevOps.project
+            Mode    = 'pat'
+            Headers = @{
+                Authorization           = "Basic $basic"
+                'X-TFS-FedAuthRedirect' = 'Suppress'
+                Accept                  = 'application/json'
+            }
+        }
+        return $script:Ctx
+    }
+    # No PAT: rely on the credential the azure-devops extension already holds (az devops login).
+    # REST calls are routed through `az devops invoke`; git needs Git Credential Manager (interactive).
+    $probe = & az devops project list --organization $Manifest.azureDevOps.organizationUrl --output json --only-show-errors 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "No AZDO_PAT and the azure-devops extension cannot reach $($Manifest.azureDevOps.organizationUrl) (run 'az devops login' or set AZDO_PAT). Scopes for a PAT: Code (read, write, manage), Build (read, execute, manage), Project and Team (read, write), Environment (read, manage), Service Connections (read, query, manage), Variable Groups (read, create, manage), Graph (read, manage), Identity (read), Wiki (read, write), Packaging (read, write, manage), Work Items (read, write), Security (manage). Detail: $probe"
+    }
+    Write-MeridianInfo "no AZDO_PAT; using the azure-devops extension credential (REST via 'az devops invoke')"
     $script:Ctx = [pscustomobject]@{
         OrgUrl  = $Manifest.azureDevOps.organizationUrl
-        OrgName = ($Manifest.azureDevOps.organizationUrl -replace '^https://dev\.azure\.com/', '').Trim('/')
+        OrgName = $orgName
         Project = $Manifest.azureDevOps.project
-        Headers = @{
-            Authorization           = "Basic $basic"
-            'X-TFS-FedAuthRedirect' = 'Suppress'
-            Accept                  = 'application/json'
-        }
+        Mode    = 'cli'
+        Headers = $null
     }
     return $script:Ctx
+}
+
+# Path prefixes (after /_apis/) mapped to the location-service area/resource that `az devops invoke`
+# needs when no PAT is available. Segments in braces become route parameters. Longest match wins.
+$script:InvokeRoutes = @(
+    @{ Pattern = 'build/generalsettings';                                     Area = 'build';               Resource = 'generalsettings' }
+    @{ Pattern = 'build/definitions';                                         Area = 'build';               Resource = 'definitions' }
+    @{ Pattern = 'build/definitions/{definitionId}';                          Area = 'build';               Resource = 'definitions' }
+    @{ Pattern = 'packaging/feeds';                                           Area = 'packaging';           Resource = 'feeds' }
+    @{ Pattern = 'packaging/feeds/{feedId}';                                  Area = 'packaging';           Resource = 'feeds' }
+    @{ Pattern = 'pipelines/environments';                                    Area = 'distributedtask';     Resource = 'environments' }
+    @{ Pattern = 'pipelines/environments/{environmentId}';                    Area = 'distributedtask';     Resource = 'environments' }
+    @{ Pattern = 'pipelines/checks/configurations';                           Area = 'PipelinesChecks';     Resource = 'configurations' }
+    @{ Pattern = 'pipelines/checks/configurations/{id}';                      Area = 'PipelinesChecks';     Resource = 'configurations' }
+    @{ Pattern = 'pipelines/pipelinepermissions/{resourceType}/{resourceId}'; Area = 'pipelinePermissions'; Resource = 'pipelinePermissions' }
+    @{ Pattern = 'pipelines/approvals';                                       Area = 'PipelinesApprovals';  Resource = 'approvals' }
+    @{ Pattern = 'pipelines/approvals/{approvalId}';                          Area = 'PipelinesApprovals';  Resource = 'approvals' }
+    @{ Pattern = 'distributedtask/variablegroups';                            Area = 'distributedtask';     Resource = 'variablegroups' }
+    @{ Pattern = 'distributedtask/variablegroups/{groupId}';                  Area = 'distributedtask';     Resource = 'variablegroups' }
+    @{ Pattern = 'distributedtask/tasks';                                     Area = 'distributedtask';     Resource = 'tasks' }
+    @{ Pattern = 'distributedtask/resourceusage';                             Area = 'distributedtask';     Resource = 'resourceusage' }
+    @{ Pattern = 'identities';                                                Area = 'IMS';                 Resource = 'Identities' }
+    @{ Pattern = 'policy/configurations';                                     Area = 'policy';              Resource = 'configurations' }
+    @{ Pattern = 'policy/configurations/{configurationId}';                   Area = 'policy';              Resource = 'configurations' }
+    @{ Pattern = 'git/repositories/{repositoryId}/refs';                      Area = 'git';                 Resource = 'refs' }
+    @{ Pattern = 'git/repositories/{repositoryId}/pushes';                    Area = 'git';                 Resource = 'pushes' }
+)
+
+function ConvertTo-AdoInvokeTarget {
+    param([Parameter(Mandatory)][string]$Path)
+    $qIdx = $Path.IndexOf('?')
+    $query = if ($qIdx -ge 0) { $Path.Substring($qIdx + 1) } else { '' }
+    $rel = if ($qIdx -ge 0) { $Path.Substring(0, $qIdx) } else { $Path }
+    $segments = $rel.Trim('/').Split('/')
+    foreach ($entry in ($script:InvokeRoutes | Sort-Object { $_.Pattern.Length } -Descending)) {
+        $pattern = $entry.Pattern.Split('/')
+        if ($pattern.Count -ne $segments.Count) { continue }
+        $route = [ordered]@{}
+        $ok = $true
+        for ($i = 0; $i -lt $pattern.Count; $i++) {
+            if ($pattern[$i] -match '^\{(\w+)\}$') { $route[$Matches[1]] = [uri]::UnescapeDataString($segments[$i]) }
+            elseif ($pattern[$i] -ine $segments[$i]) { $ok = $false; break }
+        }
+        if (-not $ok) { continue }
+        $queryParams = [ordered]@{}
+        foreach ($pair in ($query -split '&' | Where-Object { $_ })) {
+            $k, $v = $pair.Split('=', 2)
+            $queryParams[[uri]::UnescapeDataString($k)] = [uri]::UnescapeDataString(($v ?? ''))
+        }
+        return @{ Area = $entry.Area; Resource = $entry.Resource; Route = $route; Query = $queryParams }
+    }
+    throw "No 'az devops invoke' mapping for '$rel'. Add it to InvokeRoutes in Meridian.Ado.psm1 or set AZDO_PAT."
+}
+
+function Invoke-AdoCliRest {
+    <# Same contract as Invoke-AdoRest, executed through `az devops invoke` with the extension's stored credential. #>
+    param([string]$Method, [string]$Path, $Body, [string]$ApiVersion, [switch]$ProjectScoped)
+    $ctx = Get-MeridianContext
+    $t = ConvertTo-AdoInvokeTarget -Path $Path
+    # the extension parses the version as a float plus an optional '-preview' flag; '7.1-preview.1' is rejected
+    $version = $ApiVersion -replace '-preview(\.\d+)?$', '-preview'
+    if ($ProjectScoped) { $t.Route['project'] = $ctx.Project }
+    $azArgs = @('devops', 'invoke', '--organization', $ctx.OrgUrl, '--area', $t.Area, '--resource', $t.Resource, '--http-method', $Method, '--api-version', $version, '--output', 'json', '--only-show-errors')
+    if ($t.Route.Count -gt 0) { $azArgs += '--route-parameters'; $azArgs += @($t.Route.GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value)" }) }
+    if ($t.Query.Count -gt 0) { $azArgs += '--query-parameters'; $azArgs += @($t.Query.GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value)" }) }
+    $file = $null
+    try {
+        if ($null -ne $Body) {
+            $file = Join-Path ([IO.Path]::GetTempPath()) "ado-invoke-$([guid]::NewGuid().ToString('n')).json"
+            $json = if ($Body -is [string]) { $Body } else { $Body | ConvertTo-Json -Depth 32 -Compress }
+            [IO.File]::WriteAllText($file, $json, [Text.UTF8Encoding]::new($false))
+            $azArgs += @('--in-file', $file, '--encoding', 'utf-8')
+        }
+        $out = & az @azArgs 2>&1
+        $text = ($out | Where-Object { $_ -is [string] }) -join "`n"
+        if ($LASTEXITCODE -ne 0) {
+            $err = ($out | Where-Object { $_ -isnot [string] } | ForEach-Object { $_.ToString() }) -join "`n"
+            throw "ADO $Method $Path (az devops invoke --area $($t.Area) --resource $($t.Resource)) failed: $err $text"
+        }
+        if ([string]::IsNullOrWhiteSpace($text)) { return $null }
+        try { $obj = $text | ConvertFrom-Json -Depth 32 }
+        catch {
+            # some payloads (distributedtask/tasks) carry an empty property name, which only hashtables accept
+            $obj = $text | ConvertFrom-Json -Depth 32 -AsHashtable
+            if ($obj -is [hashtable]) { $obj.Remove('continuation_token') }
+            return $obj
+        }
+        if ($obj -is [pscustomobject] -and $obj.PSObject.Properties['continuation_token']) { $obj.PSObject.Properties.Remove('continuation_token') }
+        return $obj
+    }
+    finally { if ($file -and (Test-Path $file)) { Remove-Item $file -Force } }
 }
 
 function Get-MeridianContext {
@@ -106,6 +216,9 @@ function Invoke-AdoRest {
         [string]$ContentType = 'application/json'
     )
     $ctx = Get-MeridianContext
+    if ($ctx.Mode -eq 'cli') {
+        return Invoke-AdoCliRest -Method $Method -Path $Path -Body $Body -ApiVersion $ApiVersion -ProjectScoped:$ProjectScoped
+    }
     $base = if ($Service -eq 'dev') { $ctx.OrgUrl } else { "https://$Service.dev.azure.com/$($ctx.OrgName)" }
     $scope = if ($ProjectScoped) { "/$([uri]::EscapeDataString($ctx.Project))" } else { '' }
     $sep = if ($Path.Contains('?')) { '&' } else { '?' }
@@ -245,15 +358,28 @@ function ConvertTo-AdoBranchArgs {
 function Get-GitAuthHeader {
     <# Value for git -c http.extraheader=... so the PAT never appears in a remote URL. #>
     param([string]$Pat = $env:AZDO_PAT)
-    if (-not $Pat) { throw 'AZDO_PAT is required for git operations against Azure Repos.' }
+    if (-not $Pat) {
+        Write-MeridianWarn 'no AZDO_PAT: git will authenticate through its credential helper (Git Credential Manager prompts in a browser the first time)'
+        return $null
+    }
     $basic = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(":$Pat"))
     return "AUTHORIZATION: basic $basic"
 }
 
+function Get-GitConfigArgs {
+    <# `-c http.extraheader=...` when a PAT header exists, nothing otherwise (credential helper). #>
+    param([string]$AuthHeader)
+    if ($AuthHeader) { return @('-c', "http.extraheader=$AuthHeader") }
+    return @()
+}
+
 function Get-AdoRepoRemoteUrl {
+    <# Same shape Azure Repos prints as remoteUrl (org name as user info) so Git Credential Manager keys one credential per organization. #>
     param([Parameter(Mandatory)]$Manifest, [Parameter(Mandatory)][string]$RepoName)
-    $org = $Manifest.azureDevOps.organizationUrl
+    $org = $Manifest.azureDevOps.organizationUrl.TrimEnd('/')
+    $orgName = ($org -replace '^https://dev\.azure\.com/', '').Trim('/')
     $project = [uri]::EscapeDataString($Manifest.azureDevOps.project)
+    if ($org -match '^https://dev\.azure\.com/') { return "https://$orgName@dev.azure.com/$orgName/$project/_git/$RepoName" }
     return "$org/$project/_git/$RepoName"
 }
 

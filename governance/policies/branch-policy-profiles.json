@@ -23,7 +23,7 @@
     "reservedNames": true,
     "enforceConsistentCase": true,
     "blockedFilePatterns": ["*.pfx", "*.p12", "*.pem", "*.key", "*.jks", "*.publishsettings", "appsettings.*.secrets.json", ".env", "packages.config"],
-    "commitAuthorEmailPatterns": ["*@CHANGE-ME.com", "sync-automation@CHANGE-ME.com"]
+    "commitAuthorEmailPatterns": ["*@users.noreply.github.com", "pjalva1@hotmail.com"]
   },
   "profiles": {
     "service": {

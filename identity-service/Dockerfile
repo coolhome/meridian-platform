@@ -9,7 +9,7 @@ ARG VCS_REF=unknown
 LABEL org.opencontainers.image.title="meridian/services/identity-service" \
       org.opencontainers.image.version="${APP_VERSION}" \
       org.opencontainers.image.revision="${VCS_REF}" \
-      org.opencontainers.image.source="https://dev.azure.com/CHANGE-ME/Meridian/_git/meridian-identity-service" \
+      org.opencontainers.image.source="https://dev.azure.com/coolhome/Meridian/_git/meridian-identity-service" \
       meridian.service="identity-service"
 
 WORKDIR /app

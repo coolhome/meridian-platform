@@ -7,7 +7,8 @@
     wildcards expanded against local refs), computes the subtree split commit and pushes it
     to refs/heads/<branch> of the Azure Repo. Split is deterministic, so repeated runs are
     fast-forward. Creates the Azure Repo when missing and sets its default branch.
-    The PAT travels in an http.extraheader, never in the remote URL.
+    The PAT travels in an http.extraheader, never in the remote URL. Without AZDO_PAT, git falls
+    back to its credential helper (Git Credential Manager signs in interactively).
 .EXAMPLE
     pwsh tooling/Sync-ToAzureRepos.ps1 -Folders approval-service,worker-jobs
 .EXAMPLE
@@ -55,7 +56,7 @@ try {
             if ($LASTEXITCODE -ne 0 -or -not $split) { Write-MeridianWarn "no commits for $($repo.folder) on $branch; skipped"; continue }
             $split = ($split | Select-Object -Last 1).Trim()
             $refspec = "${split}:refs/heads/$branch"
-            $pushArgs = @('-c', "http.extraheader=$authHeader", 'push')
+            $pushArgs = @(Get-GitConfigArgs -AuthHeader $authHeader) + @('push')
             if ($Force) { $pushArgs += '--force' }
             $pushArgs += @($url, $refspec)
             if ($DryRun) {

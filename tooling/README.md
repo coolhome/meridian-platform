@@ -20,8 +20,18 @@ on first use) and git 2.30+ with `subtree`.
 
 ## Authentication
 
-Set `AZDO_PAT` (or pass `-Pat`). Required scopes are listed by the module when the variable
-is missing. Override the manifest with `MERIDIAN_ADO_ORG_URL` / `MERIDIAN_ADO_PROJECT`.
+Two modes, chosen by whether `AZDO_PAT` (or `-Pat`) is set:
+
+| Mode | REST calls | `az devops` / `az repos` / `az pipelines` | git push/pull to Azure Repos |
+| --- | --- | --- | --- |
+| PAT (`AZDO_PAT` set) | direct `Invoke-RestMethod` with basic auth | PAT via `AZURE_DEVOPS_EXT_PAT` | PAT in `http.extraheader` |
+| Credential-manager (no PAT) | `az devops invoke` with the credential stored by `az devops login` (route table `InvokeRoutes` in the module) | stored credential | Git Credential Manager (browser sign-in the first time) |
+
+Use the PAT mode in CI (the GitHub sync workflow). The credential-manager mode is for an operator
+workstation where `az devops login` has already been run; an Entra token from `az account
+get-access-token` is not accepted by Microsoft-account-owned organizations (`TF400813`), which
+is why the module never tries it. Required PAT scopes are listed by the module when neither
+credential works. Override the manifest with `MERIDIAN_ADO_ORG_URL` / `MERIDIAN_ADO_PROJECT`.
 
 ## Order of operations for a new organization
 

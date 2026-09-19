@@ -1,18 +1,19 @@
 # GitHub-side ownership. Mirrors the "owners" column in repos.manifest.json.
-# Replace CHANGE-ME with the GitHub organization.
-*                                   @CHANGE-ME/platform-engineering
-/governance/                        @CHANGE-ME/platform-engineering @CHANGE-ME/security-champions
-/pipeline-templates/                @CHANGE-ME/platform-engineering @CHANGE-ME/security-champions
-/platform-infrastructure/           @CHANGE-ME/platform-engineering
-/platform-libraries/                @CHANGE-ME/platform-engineering
-/platform-libraries/schemas/        @CHANGE-ME/platform-engineering @CHANGE-ME/approvals-team
-/identity-service/                  @CHANGE-ME/identity-team
-/approval-service/                  @CHANGE-ME/approvals-team
-/worker-jobs/                       @CHANGE-ME/approvals-team
-/app-backend/                       @CHANGE-ME/experience-team
-/app-frontend/                      @CHANGE-ME/experience-team
-/containers/                        @CHANGE-ME/platform-engineering @CHANGE-ME/security-champions
-/observability/                     @CHANGE-ME/sre
-/tooling/                           @CHANGE-ME/platform-engineering
-/repos.manifest.json                @CHANGE-ME/platform-engineering
-/.github/                           @CHANGE-ME/platform-engineering
+# coolhome is a personal account (no GitHub teams), so every path resolves to the account owner.
+# The intended team split is the "owners" column in repos.manifest.json.
+*                                   @coolhome
+/governance/                        @coolhome
+/pipeline-templates/                @coolhome
+/platform-infrastructure/           @coolhome
+/platform-libraries/                @coolhome
+/platform-libraries/schemas/        @coolhome
+/identity-service/                  @coolhome
+/approval-service/                  @coolhome
+/worker-jobs/                       @coolhome
+/app-backend/                       @coolhome
+/app-frontend/                      @coolhome
+/containers/                        @coolhome
+/observability/                     @coolhome
+/tooling/                           @coolhome
+/repos.manifest.json                @coolhome
+/.github/                           @coolhome

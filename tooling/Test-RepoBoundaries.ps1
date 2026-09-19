@@ -47,7 +47,7 @@ $overlayRoot = Join-Path $root $m.governance.overlay
 $overlayFiles = @(Get-ChildItem -LiteralPath $overlayRoot -Recurse -File -Force)
 
 # 4. top-level folders must be declared
-$allowedTop = @('.github', 'docs') + @($m.repos.folder)
+$allowedTop = @('.github', '.claude', 'docs') + @($m.repos.folder)
 foreach ($d in Get-ChildItem -LiteralPath $root -Directory -Force | Where-Object { $_.Name -ne '.git' }) {
     if ($allowedTop -notcontains $d.Name) { Add-Violation $d.FullName "top-level folder '$($d.Name)' is not declared in repos.manifest.json" }
 }

@@ -6,11 +6,11 @@
     "resourcePrefix": "mrd"
   },
   "github": {
-    "repository": "CHANGE-ME/meridian-platform",
+    "repository": "coolhome/meridian-platform",
     "defaultBranch": "main"
   },
   "azureDevOps": {
-    "organizationUrl": "https://dev.azure.com/CHANGE-ME",
+    "organizationUrl": "https://dev.azure.com/coolhome",
     "project": "Meridian",
     "projectDescription": "Meridian Approval Platform - execution plane (Repos mirrors, Pipelines, Environments, Boards, Artifacts, Wiki).",
     "processTemplate": "Agile",
