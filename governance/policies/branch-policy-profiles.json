@@ -13,7 +13,7 @@
     "Reserved names restriction": "db2b9b4c-180d-4529-9701-01541d19f36b",
     "Git repository settings": "7ed39669-655c-494e-b4a0-a08b4da0fcce",
     "File name restriction": "51c78909-e838-41a2-9496-c647091e3c61",
-    "Commit author email validation": "77ed4bd3-b063-4689-934a-175e4de0a78f"
+    "Commit author email validation": "77ed4bd3-b063-4689-934a-175e4d0a78d7"
   },
   "branches": ["main", "release/*"],
   "repositorySettings": {

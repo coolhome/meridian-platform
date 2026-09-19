@@ -21,8 +21,13 @@ $tmp = Join-Path ([IO.Path]::GetTempPath()) "meridian-policies-$([guid]::NewGuid
 New-Item -ItemType Directory -Path $tmp -Force | Out-Null
 
 function Get-ExistingPolicies([string]$RepoId) {
-    $all = @(Invoke-AzCli repos policy list --repository-id $RepoId)
-    return $all
+    # `az repos policy list --repository-id` returns only repository-scoped policies (branch ones need
+    # --branch), so read the project list once and filter by scope; a duplicate create is rejected by the service.
+    $all = @((Invoke-AdoRest -ProjectScoped -Path 'policy/configurations').value)
+    return @($all | Where-Object {
+        $_.PSObject.Properties['settings'] -and $_.settings.PSObject.Properties['scope'] -and
+        (@($_.settings.scope) | Where-Object { $_.PSObject.Properties['repositoryId'] -and $_.repositoryId -eq $RepoId })
+    })
 }
 
 function Find-Policy($Existing, [string]$TypeName, [string]$Branch, [scriptblock]$Extra) {

@@ -122,6 +122,7 @@ $script:InvokeRoutes = @(
     @{ Pattern = 'distributedtask/tasks';                                     Area = 'distributedtask';     Resource = 'tasks' }
     @{ Pattern = 'distributedtask/resourceusage';                             Area = 'distributedtask';     Resource = 'resourceusage' }
     @{ Pattern = 'identities';                                                Area = 'IMS';                 Resource = 'Identities' }
+    @{ Pattern = 'policy/types';                                              Area = 'policy';              Resource = 'types' }
     @{ Pattern = 'policy/configurations';                                     Area = 'policy';              Resource = 'configurations' }
     @{ Pattern = 'policy/configurations/{configurationId}';                   Area = 'policy';              Resource = 'configurations' }
     @{ Pattern = 'git/repositories/{repositoryId}/refs';                      Area = 'git';                 Resource = 'refs' }
@@ -306,7 +307,8 @@ function Grant-AdoPipelinePermission {
 
 function Get-AdoPolicyTypeId {
     param([Parameter(Mandatory)][string]$DisplayName, $Fallbacks)
-    if (-not $script:PolicyTypes) { $script:PolicyTypes = @(Invoke-AzCli repos policy type list) }
+    # the azure-devops extension has no 'policy type' command; the REST list is project-scoped
+    if (-not $script:PolicyTypes) { $script:PolicyTypes = @((Invoke-AdoRest -ProjectScoped -Path 'policy/types').value) }
     $t = $script:PolicyTypes | Where-Object { $_.displayName -eq $DisplayName } | Select-Object -First 1
     if ($t) { return $t.id }
     if ($Fallbacks -and $Fallbacks.PSObject.Properties[$DisplayName]) {
