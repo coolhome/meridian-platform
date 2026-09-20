@@ -434,10 +434,24 @@ identifier}` object from the 7.1 reference page. **Every one returned HTTP 200 w
 `{"count":0,"value":[]}` and the read-back showed no entry.** The graph-descriptor hypothesis is
 dead. The GET on the same endpoint with the same token works, so the token reaches the service.
 
-The remaining hypothesis is **PAT scope**: a token without *Packaging (read, write and manage)*
-may be silently no-opping the write rather than returning 401, which would make this a
-documentation failure rather than an API one. Worth one test before concluding the endpoint is
-write-only-in-name. Either way the portal is currently the only proven path.
+**Scope was then ruled out too.** The script now probes write capability before concluding: it
+PATCHes the feed's own description to the value it already holds, which needs *Packaging (read,
+write and manage)* and changes nothing. That write is **accepted**. The same token, in the same
+run, cannot make a single permissions entry stick. Feed addressed by GUID instead of name: same.
+api-versions 6.0-preview.1 and 7.0-preview.1: same.
+
+So it is not the token, not the identity form, not the api-version and not how the feed is
+addressed. The `permissions` route accepts the request, answers 200 with an empty collection and
+persists nothing. **The grant cannot be automated through this API, and the portal is the only
+path.** That is now a finding rather than a suspicion, and the bootstrap reports it as a step a
+human must perform instead of pretending it might have worked.
+
+A trap worth its own line: the first version of these diagnostics named a local variable `$feed`
+while the parameter was `$Feed`. PowerShell variable names are case-insensitive, so the feed
+object overwrote the feed name and every probe URL after it was malformed -- which produced a
+confident and completely wrong "token scope" verdict. Diagnostics that can fail silently need
+their own sanity check; this one prints the resolved feed name and id before it draws any
+conclusion.
 
 **A trap that hid the answer for a full session.** The first version of that script, and of
 `Approve-PendingApprovals.ps1`, built their URLs as `"$feedsBase?api-version=..."`. PowerShell

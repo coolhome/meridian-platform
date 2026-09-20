@@ -35,8 +35,8 @@ $headers = if ($Pat) { @{ Authorization = 'Basic ' + [Convert]::ToBase64String([
 "auth: $(if ($headers) { 'PAT' } else { 'az devops credential' })"
 
 function Invoke-Cli {
-    param([string]$Method, [string]$Area, [string]$Resource, [string[]]$Route, [string[]]$Query, [string]$BodyJson)
-    $cli = @('devops', 'invoke', '--org', $Org, '--area', $Area, '--resource', $Resource, '--http-method', $Method, '--api-version', '7.1-preview', '-o', 'json', '--only-show-errors')
+    param([string]$Method, [string]$Area, [string]$Resource, [string[]]$Route, [string[]]$Query, [string]$BodyJson, [string]$ApiVersion = '7.1-preview')
+    $cli = @('devops', 'invoke', '--org', $Org, '--area', $Area, '--resource', $Resource, '--http-method', $Method, '--api-version', $ApiVersion, '-o', 'json', '--only-show-errors')
     if ($Route) { $cli += '--route-parameters'; $cli += $Route }
     if ($Query) { $cli += '--query-parameters'; $cli += $Query }
     $file = $null
@@ -113,5 +113,86 @@ foreach ($a in $attempts) {
     if ($after -and $after.role -in @($Role, 'administrator')) { "ok: '$Identity' is now $($after.role) on feed '$Feed'"; exit 0 }
     "  not persisted (read-back: $(if ($after) { $after.role } else { 'no entry' }))"
 }
-Write-Warning "No request shape persisted. Portal fallback: Artifacts > $Feed > gear > Permissions > Add users/groups > '$Identity' > Feed Publisher (Contributor). Paste this output back so the bootstrap can be fixed to match whatever works."
+# 4. Nothing persisted. "The API returns 200 and does nothing" has two very different causes and
+#    the fix differs, so work out which one this is instead of guessing.
+"`n--- diagnostics: no shape persisted, finding out why ---"
+
+$feedBase = "https://feeds.dev.azure.com/$orgName/$([uri]::EscapeDataString($Project))/_apis/packaging/Feeds"
+function Get-Feed {
+    if ($headers) { return Invoke-RestMethod -Method GET -Uri "${feedBase}/${Feed}?api-version=7.1-preview.1" -Headers $headers }
+    return Invoke-Cli -Method GET -Area packaging -Resource feeds -Route @("project=$Project", "feedId=$Feed")
+}
+
+$feedObj = $null
+try { $feedObj = Get-Feed } catch { "could not read the feed: $($_.Exception.Message)" }
+# A single-feed GET can come back wrapped as {count, value}; unwrap before use.
+if ($feedObj -and $feedObj.PSObject.Properties['value']) { $feedObj = @($feedObj.value)[0] }
+if ($feedObj) { "feed: name=$($feedObj.name) id=$($feedObj.id)" }
+
+# Probe A: can this credential write to the feeds service at all? Setting the description to the
+# value it already has is a write that needs Packaging (read, write and manage) and changes nothing.
+# A silent no-op on an under-scoped token looks exactly like the permissions failure above, so this
+# is what separates "wrong scope" from "this endpoint is broken".
+$canWrite = $null
+if ($feedObj) {
+    $probe = ConvertTo-Json -InputObject @{ description = $feedObj.description } -Compress
+    try {
+        if ($headers) { $null = Invoke-RestMethod -Method PATCH -Uri "${feedBase}/$($feedObj.id)?api-version=7.1-preview.1" -Headers $headers -ContentType 'application/json' -Body $probe }
+        else { $null = Invoke-Cli -Method PATCH -Area packaging -Resource feeds -Route @("project=$Project", "feedId=$($feedObj.id)") -BodyJson $probe }
+        $canWrite = $true
+        "probe A (feed description write): accepted -- this credential CAN write to the feeds service"
+    }
+    catch {
+        $canWrite = $false
+        "probe A (feed description write): REJECTED -- $($_.Exception.Message)"
+    }
+}
+
+# Probe B: address the feed by GUID rather than by name. Several packaging routes behave differently
+# for the two, and every attempt above used the name.
+if ($feedObj -and $feedObj.id -and $feedObj.id -ne $Feed) {
+    $body = ConvertTo-Json -InputObject @(@{ identityDescriptor = ($graph ?? $id.descriptor); identityId = $id.id; displayName = $Identity; role = $Role }) -Depth 6 -Compress -AsArray
+    try {
+        if ($headers) { $null = Invoke-RestMethod -Method PATCH -Uri "${feedBase}/$($feedObj.id)/permissions?api-version=7.1-preview.1" -Headers $headers -ContentType 'application/json' -Body $body }
+        else { $null = Invoke-Cli -Method PATCH -Area packaging -Resource permissions -Route @("project=$Project", "feedId=$($feedObj.id)") -BodyJson $body }
+        $after = Get-Permissions | Where-Object $isTarget | Select-Object -First 1
+        if ($after -and $after.role -in @($Role, 'administrator')) { "ok: feed addressed by GUID worked -- '$Identity' is now $($after.role)"; exit 0 }
+        "probe B (feed by GUID): still not persisted"
+    }
+    catch { "probe B (feed by GUID): request failed -- $($_.Exception.Message)" }
+}
+
+# Probe C: older api-versions of the same route.
+foreach ($ver in @('6.0-preview.1', '7.0-preview.1')) {
+    $body = ConvertTo-Json -InputObject @(@{ identityDescriptor = ($graph ?? $id.descriptor); identityId = $id.id; displayName = $Identity; role = $Role }) -Depth 6 -Compress -AsArray
+    try {
+        if ($headers) { $null = Invoke-RestMethod -Method PATCH -Uri "${feedBase}/${Feed}/permissions?api-version=$ver" -Headers $headers -ContentType 'application/json' -Body $body }
+        else { $null = Invoke-Cli -Method PATCH -Area packaging -Resource permissions -Route @("project=$Project", "feedId=$Feed") -BodyJson $body -ApiVersion $ver }
+        $after = Get-Permissions | Where-Object $isTarget | Select-Object -First 1
+        if ($after -and $after.role -in @($Role, 'administrator')) { "ok: api-version $ver worked -- '$Identity' is now $($after.role)"; exit 0 }
+        "probe C (api-version $ver): still not persisted"
+    }
+    catch { "probe C (api-version $ver): request failed -- $($_.Exception.Message)" }
+}
+
+"`n--- verdict ---"
+if ($canWrite -eq $false) {
+    Write-Warning @"
+The credential cannot write to the feeds service at all, so this is a TOKEN SCOPE problem, not an
+API defect. Reissue the PAT with 'Packaging (read, write and manage)' and run this script again.
+Until then: Artifacts > $Feed > gear > Permissions > Add users/groups > '$Identity' > Contributor.
+"@
+}
+elseif ($canWrite -eq $true) {
+    Write-Warning @"
+The credential CAN write to the feeds service (a feed description write was accepted), yet every
+permissions PATCH returns 200 with an empty result and persists nothing. That points at the
+permissions route itself rather than at scope or identity form, and the portal is the only known
+path. Grant it there: Artifacts > $Feed > gear > Permissions > Add users/groups > '$Identity' >
+Contributor, and record this in docs/reference-feedback.md.
+"@
+}
+else {
+    Write-Warning "Could not read the feed, so scope could not be tested. Grant in the portal: Artifacts > $Feed > gear > Permissions > Add users/groups > '$Identity' > Contributor."
+}
 exit 1
