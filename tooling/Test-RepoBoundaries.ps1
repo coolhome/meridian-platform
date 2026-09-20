@@ -49,7 +49,13 @@ $overlayFiles = @(Get-ChildItem -LiteralPath $overlayRoot -Recurse -File -Force)
 # 4. top-level folders must be declared
 $allowedTop = @('.github', '.claude', 'docs') + @($m.repos.folder)
 foreach ($d in Get-ChildItem -LiteralPath $root -Directory -Force | Where-Object { $_.Name -ne '.git' }) {
-    if ($allowedTop -notcontains $d.Name) { Add-Violation $d.FullName "top-level folder '$($d.Name)' is not declared in repos.manifest.json" }
+    if ($allowedTop -contains $d.Name) { continue }
+    # ADR 0004 binds folders that become Azure Repos. A git-ignored directory is never committed and
+    # never mirrored, so it cannot break the one-folder-one-repo boundary: local scratch and agent
+    # runtime directories are not violations. Anything tracked still has to be declared.
+    $null = & git -C $root check-ignore --quiet -- "$($d.Name)/" 2>$null
+    if ($LASTEXITCODE -eq 0) { continue }
+    Add-Violation $d.FullName "top-level folder '$($d.Name)' is not declared in repos.manifest.json"
 }
 
 foreach ($repo in $mirrored) {
