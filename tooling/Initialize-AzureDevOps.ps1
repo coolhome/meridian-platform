@@ -30,6 +30,11 @@ $envDefs = Get-MeridianGovernanceFile -Manifest $m -Key environments
 $pipelineSettings = Get-MeridianGovernanceFile -Manifest $m -Key projectPipelineSettings
 $placeholder = '00000000-0000-0000-0000-000000000000'
 
+# Steps the bootstrap could not complete itself. Collected here and reprinted at the end, because
+# a warning 400 lines up is a warning nobody reads. See "Steps automation cannot perform" in README.md.
+$manualSteps = [System.Collections.Generic.List[string]]::new()
+function Add-ManualStep { param([string]$Message) $manualSteps.Add($Message); Write-MeridianWarn $Message }
+
 # ---------------------------------------------------------------- project
 Write-MeridianStep "project $($ctx.Project)"
 $project = Get-AdoProject
@@ -153,7 +158,7 @@ else {
 $buildServiceName = "$($ctx.Project) Build Service ($($ctx.OrgName))"
 $buildService = @((Invoke-AdoRest -Service vssps -Path "identities?searchFilter=General&filterValue=$([uri]::EscapeDataString($buildServiceName))&queryMembership=None").value) |
     Where-Object { $_.descriptor -like "*:Build:$($project.id)" } | Select-Object -First 1
-if (-not $buildService) { Write-MeridianWarn "identity '$buildServiceName' not found; grant Contributor on the feed by hand" }
+if (-not $buildService) { Add-ManualStep "identity '$buildServiceName' not found; grant it Contributor on feed '$($m.azureDevOps.artifactsFeed)' by hand" }
 else {
     $feedPath = "packaging/feeds/$($m.azureDevOps.artifactsFeed)/permissions"
     $perms = @((Invoke-AdoRest -Service feeds -ProjectScoped -Path $feedPath -ApiVersion '7.1-preview.1').value)
@@ -168,7 +173,7 @@ else {
         Write-MeridianInfo "feed permissions PATCH returned: $(($response | ConvertTo-Json -Depth 6 -Compress) ?? '(empty)')"
         $after = @((Invoke-AdoRest -Service feeds -ProjectScoped -Path "${feedPath}?includeIds=true" -ApiVersion '7.1-preview.1').value) | Where-Object $isBuildService | Select-Object -First 1
         if ($after -and $after.role -in @('contributor', 'administrator')) { Write-MeridianOk "build service granted $($after.role) on the feed" }
-        else { Write-MeridianWarn "feed permission for '$buildServiceName' (id $($buildService.id)) did not persist; grant Contributor in Artifacts > feed settings > Permissions" }
+        else { Add-ManualStep "feed permission for '$buildServiceName' (id $($buildService.id)) did not persist. Grant Contributor in Artifacts > $($m.azureDevOps.artifactsFeed) > gear > Permissions, or run: pwsh ./tooling/Grant-FeedRole.ps1" }
     }
 }
 
@@ -229,6 +234,11 @@ Set-VariableGroup 'meridian-shared' @{
     'Meridian.Location'             = $sharedEnv.azure.location
     'Meridian.TenantId'             = $sharedEnv.azure.tenantId
     'Meridian.SharedSubscriptionId' = $sharedEnv.azure.subscriptionId
+    # Unprefixed, unlike its neighbours, because consumers reference $(UniqueSuffix) uniformly across
+    # every environment (platform-infrastructure passes uniqueSuffix=$(UniqueSuffix) on the shared
+    # stage too). Without it the macro does not expand and Bicep receives the literal 15-character
+    # string "$(UniqueSuffix)" against @maxLength(8) -- BCP332, run 3814.
+    'UniqueSuffix'                  = $sharedEnv.azure.uniqueSuffix
 } 'Environment-agnostic values used by every pipeline stage. Not authorized for all pipelines; granted per pipeline by New-AdoPipelines.ps1.'
 foreach ($e in $envDefs.environments | Where-Object { $_.PSObject.Properties['azure'] -and $_.name -ne 'shared' }) {
     $vars = @{
@@ -379,4 +389,12 @@ foreach ($e in $envDefs.environments) {
     }
 }
 
+if ($manualSteps.Count -gt 0) {
+    Write-Host "`n$('=' * 78)" -ForegroundColor Yellow
+    Write-Host " $($manualSteps.Count) STEP$(if ($manualSteps.Count -ne 1) { 'S' }) THIS BOOTSTRAP COULD NOT PERFORM" -ForegroundColor Yellow
+    Write-Host " The platform is not fully provisioned until a human completes them." -ForegroundColor Yellow
+    Write-Host "$('=' * 78)" -ForegroundColor Yellow
+    for ($i = 0; $i -lt $manualSteps.Count; $i++) { Write-Host " $($i + 1). $($manualSteps[$i])" -ForegroundColor Yellow }
+    Write-Host " See 'Steps automation cannot perform' in README.md.`n" -ForegroundColor Yellow
+}
 Write-Host "`nBootstrap complete. Next: pwsh tooling/Publish-Platform.ps1" -ForegroundColor Green

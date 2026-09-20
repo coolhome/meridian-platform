@@ -17,7 +17,31 @@ on first use) and git 2.30+ with `subtree`.
 | `Sync-GovernanceOverlay.ps1` | Stamp overlay files into every mirrored folder |
 | `Get-ChangedFolders.ps1` | Map a git diff to mirrored folders (drives the workflows) |
 | `Test-PipelineTemplates.ps1` | Preview-compile every consumer against a templates ref |
+| `Grant-FeedRole.ps1` | Attempt the Artifacts feed role grant the bootstrap cannot make stick (see below) |
+| `Approve-PendingApprovals.ps1` | Approve pending pipeline approvals from a terminal (`-ListOnly`, `-Wait`) |
 | `lib/Meridian.Ado.psm1` | Shared REST/CLI helpers |
+
+## What this automation cannot do
+
+Two steps in the provisioning path require a human. Neither is a gap in the scripts' coverage
+that a bigger script would close — see "Steps automation cannot perform" in the root
+[`README.md`](../README.md) for the blast radius of skipping either.
+
+* **The feed role grant.** `Initialize-AzureDevOps.ps1` sends the documented PATCH to
+  `packaging/feeds/{feed}/permissions` with both `identityDescriptor` and `identityId`. The
+  service returns success and applies nothing. `Grant-FeedRole.ps1` exists to find a form that
+  works: it resolves the build service through IMS and the graph, then tries the graph subject
+  descriptor, the IMS descriptor, the bare identity id and the `{identityType, identifier}`
+  object, reading the permission list back after each. **If one of them persists, record which
+  in [`docs/reference-feedback.md`](../docs/reference-feedback.md) and fold it into the
+  bootstrap.** Until then the portal is the supported path.
+* **The first `shared` environment approval.** Deliberately manual. `Approve-PendingApprovals.ps1`
+  lets an operator clear it without the portal, but the gate itself is the point of the platform.
+
+Both scripts need `AZDO_PAT` set (Build read and execute; the feed one also needs enough rights
+to edit feed permissions). `Approve-PendingApprovals.ps1` requires it outright — the
+`PipelinesApprovals` area is not exposed to `az devops invoke`, so there is no
+credential-manager fallback for approvals.
 
 ## Authentication
 

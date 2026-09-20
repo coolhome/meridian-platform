@@ -407,3 +407,52 @@ the kind of validated automation knowledge it promises.
 **Wish the reference had:** a page "the first run of a governed template", listing the queue-time
 validations (service connections, pools, pipeline resources, every listed environment) that run
 before a single job starts, and which of them cannot be satisfied with variables.
+
+---
+
+## Context 2 addendum 2: the feed permission grant, and admitting a step is manual
+
+The feed role for the build service is the one provisioning step this platform has never
+completed through an API, and it is the reason `Initialize-AzureDevOps.ps1` does not bootstrap
+end to end. Recording it here because "the documented call returns 200 and does nothing" is
+exactly the class of thing a validated-automation reference should carry.
+
+**What the documented contract says.** `PATCH packaging/feeds/{feedId}/permissions` takes an
+array of `{identityDescriptor, role}`. The azure-devops CLI's own SDK types `identityDescriptor`
+as a string, so the shape the bootstrap sends is valid.
+
+**What happens.** The call returns HTTP 200 with `{"count":0,"value":[]}` and the permission list
+is unchanged. No error, no partial write, nothing to retry against. A read-back is the only way
+to know it failed, which is why the bootstrap now reads back after every grant and treats a
+missing role as a manual step rather than a warning.
+
+**What is still unknown.** Whether *any* identity reference works. The leading hypothesis is that
+the feeds service resolves graph subject descriptors (`svc.<base64>`) rather than the IMS
+descriptors (`Microsoft.TeamFoundation.ServiceIdentity;...`) that `identities` returns.
+`tooling/Grant-FeedRole.ps1` tries four forms in order and reads back after each. **If one
+persists, record which one here and fold it into the bootstrap.**
+
+**A trap that hid the answer for a full session.** The first version of that script, and of
+`Approve-PendingApprovals.ps1`, built their URLs as `"$feedsBase?api-version=..."`. PowerShell
+accepts `?` as a variable-name character, so that reads a variable named `feedsBase?`, which is
+empty, and the request goes out with the query string as the whole URI:
+`Invalid URI: The hostname could not be parsed.` Both scripts died before sending anything, on
+the PAT path only — the `az devops invoke` fallback has no interpolated URL and worked fine,
+which is what made the bug look like a service-side refusal. The fix is `"${feedsBase}?..."`.
+This is the second time this exact trap has cost this project a session (see Context 9
+addendum, third session). Grep for `\$[A-Za-z_][A-Za-z0-9_]*\?` before shipping a PowerShell
+script that builds a URL.
+
+**The wider point.** We spent two sessions asserting in handoffs and executive notes that the
+grant "has failed through the API in every scripted form attempted." It had not: the PAT path
+never executed. An automation gap and a broken script produce the same symptom — nothing
+happens — and we defaulted to the more interesting explanation. The platform now states the
+manual steps in three places (root `README.md`, `tooling/README.md`, and a numbered block the
+bootstrap prints when it finishes) and distinguishes the approval gate, which is manual by
+design, from the feed grant, which is a defect we have not closed.
+
+**Wish the reference had:** a page on Azure Artifacts feed permissions as an automation target —
+which identity descriptor flavour the feeds service accepts, that the PATCH is silently
+idempotent-on-failure, and that a read-back is mandatory. More generally, a convention for
+documenting the steps a bootstrap *cannot* perform, since every real platform has some and
+leaving them in a warning stream guarantees they are missed.

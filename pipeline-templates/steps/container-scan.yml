@@ -32,4 +32,6 @@ steps:
   condition: succeededOrFailed()
   inputs:
     targetPath: $(Build.ArtifactStagingDirectory)/CodeAnalysisLogs
-    artifact: CodeAnalysisLogs-image
+    # One artifact per image job: parallel jobs publishing the same name collide with
+    # "artifact already exists for build" and take the second job down (run 3816).
+    artifact: CodeAnalysisLogs-image-${{ replace(parameters.repository, '/', '-') }}

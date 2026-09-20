@@ -84,8 +84,38 @@ flowchart LR
    pwsh ./tooling/Publish-Platform.ps1
    ```
 
-4. From then on the GitHub workflow `sync-to-azure-repos.yml` does step 3 on every push to
+4. Complete the manual steps the bootstrap reports (see below). The platform is not fully
+   provisioned until they are done.
+
+5. From then on the GitHub workflow `sync-to-azure-repos.yml` does step 3 on every push to
    `main` or `release/*` for the folders that changed.
+
+## Steps automation cannot perform
+
+**This platform does not bootstrap end to end.** Two steps need a human, and a pipeline that
+depends on either will fail in a way that looks like a code defect but is not.
+`Initialize-AzureDevOps.ps1` prints them as a numbered block when it finishes.
+
+| Step | Why it is manual | Blast radius if skipped |
+| --- | --- | --- |
+| **Grant the project build service Contributor on the `meridian` Artifacts feed** | A feed created through REST grants the build service nothing, and the `packaging/feeds/{feed}/permissions` PATCH is accepted (HTTP 200) but applies nothing — see [`docs/reference-feedback.md`](docs/reference-feedback.md). No scripted identity form has yet been shown to persist. | `platform-libraries` cannot publish; `app-frontend` gets `npm ci` 403; every .NET service fails to restore. 6 of 10 pipelines. |
+| **Approve the `shared` environment** the first time a run pauses on it | An approval is a human gate by definition. Automating it away would defeat the control the platform exists to demonstrate. | `platform-infrastructure` (Deploy shared) and `containers-base-images` (Promote) wait indefinitely. |
+
+Both have scripted attempts that run from an operator terminal with `AZDO_PAT` set:
+
+```bash
+pwsh ./tooling/Grant-FeedRole.ps1 -ReadOnly      # inspect the current role, change nothing
+pwsh ./tooling/Grant-FeedRole.ps1                # try four identity forms, read back after each
+pwsh ./tooling/Approve-PendingApprovals.ps1 -Wait  # approve each pause as it appears
+```
+
+`Grant-FeedRole.ps1` is an experiment as much as a tool: if one of its four identity forms
+persists, say which in `docs/reference-feedback.md` and the bootstrap can be fixed to do it.
+Until then, the portal is the reliable path:
+Artifacts > `meridian` > gear > Permissions > Add users/groups > `Meridian Build Service (<org>)` > Contributor.
+
+The approval step stays manual on purpose. The feed grant is the one that should eventually
+disappear, and it is tracked as a defect in the bootstrap, not as a design decision.
 
 ## Local development
 

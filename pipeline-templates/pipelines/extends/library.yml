@@ -102,7 +102,10 @@ stages:
                 command: push
                 packagesToPush: $(Pipeline.Workspace)/packages/*.nupkg
                 nuGetFeedType: internal
-                publishVstsFeed: ${{ parameters.feed }}
+                # Project-scoped feed: the id must be "<project>/<feed>". Bare "<feed>" resolves to
+                # the organisation-scoped URL and the push 404s with TF1600011 "feed doesn't exist"
+                # regardless of permissions (run 3815).
+                publishVstsFeed: $(System.TeamProject)/${{ parameters.feed }}
 
   - ${{ if ne(coalesce(parameters.infra.templatePath, ''), '') }}:
     - ${{ each env in parameters.environments }}:

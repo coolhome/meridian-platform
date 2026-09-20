@@ -71,9 +71,11 @@ resource failedRequests 'Microsoft.Insights/scheduledQueryRules@2023-03-15-previ
             metricMeasureColumn: 'failedPercent'
             operator: 'GreaterThan'
             threshold: failedRequestPercentThreshold
+            // A query that does not project a timestamp column cannot be evaluated over more than
+            // one period; ARM rejects the rule outright if this is above 1 (run 3817).
             failingPeriods: {
-              numberOfEvaluationPeriods: 2
-              minFailingPeriodsToAlert: 2
+              numberOfEvaluationPeriods: 1
+              minFailingPeriodsToAlert: 1
             }
           }
         ]
