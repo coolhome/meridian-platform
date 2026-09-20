@@ -426,11 +426,18 @@ is unchanged. No error, no partial write, nothing to retry against. A read-back 
 to know it failed, which is why the bootstrap now reads back after every grant and treats a
 missing role as a manual step rather than a warning.
 
-**What is still unknown.** Whether *any* identity reference works. The leading hypothesis is that
-the feeds service resolves graph subject descriptors (`svc.<base64>`) rather than the IMS
-descriptors (`Microsoft.TeamFoundation.ServiceIdentity;...`) that `identities` returns.
-`tooling/Grant-FeedRole.ps1` tries four forms in order and reads back after each. **If one
-persists, record which one here and fold it into the bootstrap.**
+**Settled 2026-09-20: no identity shape works.** `tooling/Grant-FeedRole.ps1` ran all six forms
+against the documented `feeds.dev.azure.com` endpoint with a PAT: graph subject descriptor alone;
+graph descriptor with identityId and displayName; IMS descriptor with identityId and displayName
+(the bootstrap's shape); IMS descriptor alone; identityId alone; and the `{identityType,
+identifier}` object from the 7.1 reference page. **Every one returned HTTP 200 with
+`{"count":0,"value":[]}` and the read-back showed no entry.** The graph-descriptor hypothesis is
+dead. The GET on the same endpoint with the same token works, so the token reaches the service.
+
+The remaining hypothesis is **PAT scope**: a token without *Packaging (read, write and manage)*
+may be silently no-opping the write rather than returning 401, which would make this a
+documentation failure rather than an API one. Worth one test before concluding the endpoint is
+write-only-in-name. Either way the portal is currently the only proven path.
 
 **A trap that hid the answer for a full session.** The first version of that script, and of
 `Approve-PendingApprovals.ps1`, built their URLs as `"$feedsBase?api-version=..."`. PowerShell
