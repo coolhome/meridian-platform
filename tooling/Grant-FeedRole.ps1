@@ -2,15 +2,15 @@
 .SYNOPSIS
   Grants the project build service a role on an Azure Artifacts feed, then reads it back.
 .DESCRIPTION
-  Run this from your own terminal (PowerShell 7). The automation sandbox refuses permission grants, and
-  the bootstrap's own PATCH was accepted by the service but applied nothing ({"count":0,"value":[]}).
-  The azure-devops CLI's own SDK types identityDescriptor as a string, so the bootstrap's shape was
-  valid and the identity reference is the suspect. This script tries the identity references in order
-  and reads the permission list back after each one:
-    1. graph subject descriptor (svc....), alone and with identityId and displayName
-    2. IMS descriptor ("Microsoft.TeamFoundation.ServiceIdentity;..."), with and without identityId
-    3. identityId only
-    4. identityDescriptor as the {identityType, identifier} object from the 7.1 reference page
+  Initialize-AzureDevOps.ps1 makes this grant itself; this script exists to make or inspect it on its own.
+  History, because it shaped two handoffs: for two sessions every PATCH to packaging/feeds/{feed}/permissions
+  returned HTTP 200 with {"count":0,"value":[]} and persisted nothing, and the conclusion was that the
+  route refuses build-service identities. The real cause was one token in this file and the bootstrap:
+  `ConvertTo-Json -InputObject @(...) -AsArray` wraps an array that is already an array, so the wire
+  body was [[{...}]] -- an array containing an array, not a FeedPermission[] -- and the service accepted
+  it as "zero permissions to set". With the body fixed, the very first shape (IMS descriptor +
+  identityId + displayName) persisted on the first try (2026-09-21). The other shapes stay as a
+  diagnostic ladder for the next organization; the identity form was never the problem.
   Auth: $env:AZDO_PAT (or -Pat) against the documented feeds.dev.azure.com endpoint. Without a PAT it
   goes through `az devops invoke` with the credential the azure-devops extension holds.
 .EXAMPLE
@@ -92,16 +92,25 @@ if ($ReadOnly) { "read-only: stopping before any change"; exit 0 }
 #    identityDescriptor as a string, so the object form from the 7.1 reference page goes last.
 $type, $identifier = $id.descriptor -split ';', 2
 $attempts = @()
+# The bootstrap's shape goes first: if it persists, Initialize-AzureDevOps.ps1 needs no other change.
+$attempts += @{ name = 'IMS descriptor + identityId + displayName (bootstrap shape)'; body = @(@{ identityDescriptor = $id.descriptor; identityId = $id.id; displayName = $Identity; role = $Role }) }
 if ($graph) {
     $attempts += @{ name = 'graph descriptor only';                       body = @(@{ identityDescriptor = $graph; role = $Role }) }
     $attempts += @{ name = 'graph descriptor + identityId + displayName'; body = @(@{ identityDescriptor = $graph; identityId = $id.id; displayName = $Identity; role = $Role }) }
 }
-$attempts += @{ name = 'IMS descriptor + identityId + displayName (bootstrap shape)'; body = @(@{ identityDescriptor = $id.descriptor; identityId = $id.id; displayName = $Identity; role = $Role }) }
 $attempts += @{ name = 'IMS descriptor only';                                        body = @(@{ identityDescriptor = $id.descriptor; role = $Role }) }
 $attempts += @{ name = 'identityId only';                                            body = @(@{ identityId = $id.id; displayName = $Identity; role = $Role }) }
 $attempts += @{ name = 'object descriptor (7.1 reference shape)';                    body = @(@{ identityDescriptor = @{ identityType = $type; identifier = $identifier }; identityId = $id.id; displayName = $Identity; role = $Role }) }
+# Shapes the first six attempts did not cover (2026-09-21): the FeedRole enum as its integer, the graph
+# subjectDescriptor next to the IMS descriptor, and the org-level build service -- if that last one
+# persists, project-scoped identities are what the route refuses, which changes the workaround.
+$attempts += @{ name = 'role as the FeedRole integer (contributor = 3)';              body = @(@{ identityDescriptor = $id.descriptor; identityId = $id.id; role = 3 }) }
+$attempts += @{ name = 'subjectDescriptor field alongside the IMS descriptor';         body = @(@{ subjectDescriptor = $id.subjectDescriptor; identityDescriptor = $id.descriptor; identityId = $id.id; displayName = $Identity; role = $Role }) }
+$collFound = @((Invoke-Cli -Method GET -Area IMS -Resource Identities -Query @('searchFilter=General', "filterValue=Project Collection Build Service ($orgName)", 'queryMembership=None')).value)
+$coll = $collFound | Where-Object { $_.descriptor -like 'Microsoft.TeamFoundation.ServiceIdentity;*:Build:*' } | Select-Object -First 1
+if ($coll) { $attempts += @{ name = "org-level build service ($($coll.providerDisplayName))"; body = @(@{ identityDescriptor = $coll.descriptor; identityId = $coll.id; displayName = $coll.providerDisplayName; role = $Role }) } }
 foreach ($a in $attempts) {
-    $json = ConvertTo-Json -InputObject $a.body -Depth 6 -Compress -AsArray
+    $json = ConvertTo-Json -InputObject $a.body -Depth 6 -Compress
     "PATCH ($($a.name)): $json"
     try {
         $resp = Set-Permissions $json
@@ -151,7 +160,7 @@ if ($feedObj) {
 # Probe B: address the feed by GUID rather than by name. Several packaging routes behave differently
 # for the two, and every attempt above used the name.
 if ($feedObj -and $feedObj.id -and $feedObj.id -ne $Feed) {
-    $body = ConvertTo-Json -InputObject @(@{ identityDescriptor = ($graph ?? $id.descriptor); identityId = $id.id; displayName = $Identity; role = $Role }) -Depth 6 -Compress -AsArray
+    $body = ConvertTo-Json -InputObject @(@{ identityDescriptor = ($graph ?? $id.descriptor); identityId = $id.id; displayName = $Identity; role = $Role }) -Depth 6 -Compress
     try {
         if ($headers) { $null = Invoke-RestMethod -Method PATCH -Uri "${feedBase}/$($feedObj.id)/permissions?api-version=7.1-preview.1" -Headers $headers -ContentType 'application/json' -Body $body }
         else { $null = Invoke-Cli -Method PATCH -Area packaging -Resource permissions -Route @("project=$Project", "feedId=$($feedObj.id)") -BodyJson $body }
@@ -164,7 +173,7 @@ if ($feedObj -and $feedObj.id -and $feedObj.id -ne $Feed) {
 
 # Probe C: older api-versions of the same route.
 foreach ($ver in @('6.0-preview.1', '7.0-preview.1')) {
-    $body = ConvertTo-Json -InputObject @(@{ identityDescriptor = ($graph ?? $id.descriptor); identityId = $id.id; displayName = $Identity; role = $Role }) -Depth 6 -Compress -AsArray
+    $body = ConvertTo-Json -InputObject @(@{ identityDescriptor = ($graph ?? $id.descriptor); identityId = $id.id; displayName = $Identity; role = $Role }) -Depth 6 -Compress
     try {
         if ($headers) { $null = Invoke-RestMethod -Method PATCH -Uri "${feedBase}/${Feed}/permissions?api-version=$ver" -Headers $headers -ContentType 'application/json' -Body $body }
         else { $null = Invoke-Cli -Method PATCH -Area packaging -Resource permissions -Route @("project=$Project", "feedId=$Feed") -BodyJson $body -ApiVersion $ver }

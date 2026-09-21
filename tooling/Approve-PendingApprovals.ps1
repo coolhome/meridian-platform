@@ -59,7 +59,7 @@ function Get-Pending {
 }
 
 function Approve-Ids([string[]]$Ids) {
-    $body = ConvertTo-Json -InputObject @($Ids | ForEach-Object { @{ approvalId = $_; status = 'approved'; comment = $Comment } }) -Depth 4 -Compress -AsArray
+    $body = ConvertTo-Json -InputObject @($Ids | ForEach-Object { @{ approvalId = $_; status = 'approved'; comment = $Comment } }) -Depth 4 -Compress
     if ($headers) { return @((Invoke-RestMethod -Method PATCH -Uri "${base}?api-version=7.1-preview.1" -Headers $headers -ContentType 'application/json' -Body $body).value) }
     return @((Invoke-Cli -Method PATCH -BodyJson $body).value)
 }
