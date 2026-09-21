@@ -29,8 +29,12 @@ stages:
     parameters:
       scanIaC: false
 
+# Every prerequisite is explicit. A stage without dependsOn inherits whichever stage happens to
+# precede it in the file (service.yml documents the run that proved it).
 - ${{ if eq(parameters.deploy, true) }}:
   - stage: Build
+    dependsOn:
+    - Validate
     condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
     variables:
     - template: ../../variables/common.yml
@@ -55,6 +59,9 @@ stages:
 
   - stage: Promote
     displayName: Promote channel tags
+    dependsOn:
+    - Build
+    condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
     variables:
     - template: ../../variables/common.yml
     jobs:

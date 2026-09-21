@@ -55,10 +55,27 @@ stages:
     parameters:
       scanIaC: true
 
+# Every prerequisite is explicit. A stage without dependsOn inherits whichever stage happens to
+# precede it in the file (service.yml documents the run that proved it). Environments promote in
+# the order shared -> dev -> test -> prod: each what-if waits for the previous environment's deploy.
 - ${{ if eq(parameters.deploy, true) }}:
   - ${{ each env in parameters.environments }}:
     - stage: WhatIf_${{ env }}
       displayName: What-if ${{ env }}
+      dependsOn:
+      - Validate
+      - ${{ if and(eq(env, 'dev'), containsValue(parameters.environments, 'shared')) }}:
+        - Deploy_shared
+      - ${{ if and(eq(env, 'test'), containsValue(parameters.environments, 'dev')) }}:
+        - Deploy_dev
+      - ${{ if and(eq(env, 'test'), not(containsValue(parameters.environments, 'dev')), containsValue(parameters.environments, 'shared')) }}:
+        - Deploy_shared
+      - ${{ if and(eq(env, 'prod'), containsValue(parameters.environments, 'test')) }}:
+        - Deploy_test
+      - ${{ if and(eq(env, 'prod'), not(containsValue(parameters.environments, 'test')), containsValue(parameters.environments, 'dev')) }}:
+        - Deploy_dev
+      - ${{ if and(eq(env, 'prod'), not(containsValue(parameters.environments, 'test')), not(containsValue(parameters.environments, 'dev')), containsValue(parameters.environments, 'shared')) }}:
+        - Deploy_shared
       condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
       variables:
       - template: ../../variables/common.yml
@@ -77,6 +94,8 @@ stages:
           additionalParameters: ${{ parameters.additionalParameters }}
     - stage: Deploy_${{ env }}
       displayName: Deploy ${{ env }}
+      dependsOn:
+      - WhatIf_${{ env }}
       condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
       ${{ if eq(env, 'prod') }}:
         lockBehavior: sequential
