@@ -401,7 +401,7 @@ the kind of validated automation knowledge it promises.
 | gitleaks scans history | An inline `gitleaks:allow` on the current line does nothing for the earlier commits that carry the same GUID. | `.gitleaks.toml` with `[extend] useDefault = true` and a `[[allowlists]]` regex. |
 | Pipeline resource without a run | Service pipelines fail validation with "Unable to resolve latest version for pipeline platformLibraries" until that pipeline has one successful run. | Order the first runs; nothing to configure. |
 | hadolint pragma must be bare | `# hadolint ignore=DL3006  (reason)` is ignored; the reason goes on its own comment line. | Two lines. |
-| Feed created by REST has no build-service role | `npm ci` through the feed: 403 "You need to have 'Reader'"; NuGet push would fail the same way. | Contributor for `<Project> Build Service (<org>)`; our PATCH with descriptor and identityId returns without effect (open). |
+| Feed created by REST has no build-service role | `npm ci` through the feed: 403 "You need to have 'Reader'"; NuGet push would fail the same way. The portal's create dialog adds both build services as Collaborator; the REST create adds nothing. | Contributor for `<Project> Build Service (<org>)` via `PATCH packaging/feeds/{feed}/permissions` with a body of `[{identityDescriptor, identityId, role}]`. Resolved 2026-09-21 (addendum 3): our body was `[[...]]`. |
 | Version pins that never existed | trivy 0.65.0 was never released; the download 404 took the scan job and Publish SARIF with it. | Verify release assets (`gh api repos/<owner>/<repo>/releases/tags/v<x>`) when pinning. |
 
 **Wish the reference had:** a page "the first run of a governed template", listing the queue-time
@@ -477,3 +477,44 @@ which identity descriptor flavour the feeds service accepts, that the PATCH is s
 idempotent-on-failure, and that a read-back is mandatory. More generally, a convention for
 documenting the steps a bootstrap *cannot* perform, since every real platform has some and
 leaving them in a warning stream guarantees they are missed.
+
+---
+
+## Context 2 addendum 3: the feed grant was automatable all along (2026-09-21)
+
+Addendum 2 is kept above as written because its conclusion was wrong and the way it went wrong is
+the useful part. The grant persisted on the first attempt of the fifth session, with the
+bootstrap's original shape (IMS descriptor + `identityId` + `displayName`), once one token was
+removed from the code that serialized the body.
+
+**The defect.** `ConvertTo-Json -InputObject @(@{...}) -AsArray`. The input is already an
+array; `-AsArray` wraps it again. The wire body was therefore `[[{"identityDescriptor":...}]]`
+— an array containing an array — not a `FeedPermission[]`. The feeds service accepted that as
+"zero permissions to set", answered HTTP 200 `{"count":0,"value":[]}`, and persisted nothing.
+Every one of the nine identity shapes, three api-versions, the feed-by-GUID probe and the
+description-write probe went out inside the extra brackets. The same token sat in
+`Initialize-AzureDevOps.ps1` (so the bootstrap's PATCH had the same body) and in
+`Approve-PendingApprovals.ps1` (whose approvals PATCH would have approved nothing, silently).
+
+**What made it invisible.** The script printed `ConvertTo-Json` of the *PowerShell object*, not
+the bytes it sent; each attempt's log line began `[[` and nobody read the brackets, because the
+attention was on the identity string inside them. The description-write probe "proved" the
+token could write, which was true, and narrowed the blame to the permissions route — a
+conclusion that was consistent with every observation and still wrong. Two handoffs, an
+executive narrative and a README section repeated it.
+
+**Correct wire contract** (documented, and now observed): `PATCH
+https://feeds.dev.azure.com/{org}/{project}/_apis/packaging/Feeds/{feedId}/permissions?api-version=7.1-preview.1`
+with body `[{"identityDescriptor":"Microsoft.TeamFoundation.ServiceIdentity;<guid>:Build:<projectId>","identityId":"<id>","displayName":"<Project> Build Service (<org>)","role":"contributor"}]`
+returns `{"count":1,"value":[{"role":"contributor","identityDescriptor":"...","displayName":null,"isInheritedRole":false}]}`
+and the read-back shows the entry. A PAT with *Packaging (read, write and manage)* is enough.
+
+**What the reference could carry.** Not this bug — it is ours — but two things around it:
+(1) the service's response to a malformed body is 200 with an empty collection rather than 400,
+so a read-back after any permissions write is mandatory; (2) a one-line rule for PowerShell
+automation: print the serialized request body, not the object, and treat a leading `[[` as the
+first suspect when a write returns an empty result.
+
+**Manual steps, revised.** The platform has one: the `shared` environment approval, which is
+manual by design. The root `README.md`, `tooling/README.md` and the bootstrap's closing banner
+now say so.
