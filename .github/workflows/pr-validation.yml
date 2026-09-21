@@ -110,7 +110,9 @@ jobs:
           node-version-file: ${{ matrix.folder }}/.nvmrc
           cache: npm
           cache-dependency-path: ${{ matrix.folder }}/package-lock.json
-      - run: npm ci --no-audit --no-fund
+      # PR builds cannot reach Azure Artifacts (same as the .NET job above). The project .npmrc points every
+      # install at the feed, so override the registry and rewrite the lockfile's resolved URLs for this run only.
+      - run: npm ci --no-audit --no-fund --registry=https://registry.npmjs.org/ --replace-registry-host=always
       - run: npm run lint
       - run: npm test -- --run
       - run: npm run build
