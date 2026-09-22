@@ -21,11 +21,13 @@ and it is manual on purpose.
 
 ## State
 
-`main` at `08c5bb7`: PR #4 (v1.0.7, `54a282a`, merged 00:02 UTC) and PR #6 (v1.0.8, merged
-00:58 UTC). PR #5 (`feat/agentic-orchestration`) holds the agent roster, the teardown and deploy
-scripts' documentation, the docs-keeper pass and this handoff. Hosted minutes: 657 before the
-v1.0.7 wave, 710 after it (53 minutes for 18 runs; the per-run "Minutes" column overstates
-because it includes queue wait behind the single agent).
+`main` at `b580a3b`: PR #4 (v1.0.7, `54a282a`, merged 00:02 UTC), PR #6 (v1.0.8, `08c5bb7`,
+00:58 UTC) and PR #7 (services float on the library prerelease, `b580a3b`, 01:40 UTC). PR #5
+(`feat/agentic-orchestration`) holds the agent roster, the teardown and deploy scripts'
+documentation, the docs-keeper pass, the identity-script fix and this handoff. Hosted minutes:
+657 before the v1.0.7 wave, 710 after it, 758 after the v1.0.8 wave (about 50 minutes per full
+wave of 18 runs; the per-run "Minutes" column overstates because it includes queue wait behind
+the single agent).
 
 | Done | Where |
 | --- | --- |
@@ -34,6 +36,7 @@ because it includes queue wait behind the single agent).
 | v1.0.8: NuGet cache key includes `**/*.csproj` (services have no lock files); `steps/bicep-deploy.yml` exports `MERIDIAN_UNIQUE_SUFFIX` so every `.bicepparam` resolves real names. Preview-compiled for all 18 consumers | `pipeline-templates/steps/dotnet-setup.yml`, `steps/bicep-deploy.yml`, every consumer pin |
 | `Remove-AzureEnvironment.ps1` (teardown, keeps Key Vault + pipeline identity, never shared; dry-run verified against dev) and `Start-EnvironmentDeploy.ps1` (governed pipelines queued in order; not yet exercised) | `tooling/` |
 | GitHub PR validation installs the frontend from the public registry (the feed 401'd every PR that touched `app-frontend`) | `.github/workflows/pr-validation.yml` |
+| Services float on the newest library prerelease (`MeridianPackageVersion` default `1.0.*-*`) until a release tag produces a stable version | the four services' `Directory.Build.props` (PR #7) |
 | `New-PipelineIdentity.ps1` grants Resource Policy Contributor (see run 3921 below); the two live identities still need it | `platform-infrastructure/scripts/` (PR #5) |
 | Agent roster: `CLAUDE.md` working agreement, ten agents under `.claude/agents/`, agent teams enabled, reviewed once and corrected (ownership carve-outs, memory path, read-only tools) | PR #5 |
 | Docs: README manual-steps section revised, tooling README, reference feedback addendum 3, field report, docs-keeper pass over 11 Markdown files, ADR 0002 status note | PR #4, PR #5 |
@@ -55,13 +58,23 @@ because it includes queue wait behind the single agent).
 Every v1.0.7 fix held: no feed 404, no SARIF collision, `UniqueSuffix` expanded in the shared
 what-if, alerts' failing periods accepted, and no deploy stage ran after a failed build.
 
-## The v1.0.8 wave
+## The v1.0.8 wave (runs 3940 to 3957, 00:59 to 01:33 UTC; 710 -> 758 hosted minutes)
 
-Started 00:58 UTC on merge of PR #6. Read it with
-`pwsh .claude/skills/exec-narrative/scripts/Get-PipelineState.ps1`. Expected: libraries green
-through Deploy infra dev; the four .NET services build, package and deploy to dev (first
-Container Apps); observability then still red until re-run; platform-infrastructure red at
-What-if shared until the role below is granted.
+| Pipeline | Run | Result | What happened |
+| --- | --- | --- | --- |
+| platform-libraries-cicd | 3942 | **green, end to end** | Publish (1.0.0-10) and Deploy infra dev: the six queues exist on `stmrddevch2609`. The unique-suffix fix held. |
+| app-frontend-cicd, containers-base-images, pipeline-templates-ci | 3946, 3948, 3940 | green | Second shared approval recorded by the approvals script (Promote, run 3948). |
+| platform-infrastructure-cicd | 3941 | red, What-if shared | Same authorization failure; waits for the role grant below. |
+| identity/approval/app-backend/worker-jobs | 3950-3953 | red, `dotnet restore` | Cache step now passes; NU1102 "Unable to find package Meridian.ServiceDefaults (>= 1.0.0), found 1.0.0-10". GitVersion (ContinuousDelivery, main label `''`) stamps every untagged main build as a prerelease and the services pinned a stable `1.0.0` that nothing produces until `tag-release.yml` runs, which needs `prod` in the list. **Fixed in PR #7**: `MeridianPackageVersion` defaults to `1.0.*-*` (highest 1.0.x including prereleases). |
+| same four | 3943-3945, 3947 and 3954-3957 | red in 0 to 1 s | Mirror-push and base-image-tag triggers that validated before a green libraries run existed. Expected; every containers Promote re-tags `10.0` and fires all four services by design. |
+| observability-cicd | 3949 | red, Deploy dev | Same four `*-restarts` metric alerts; Container Apps still absent. |
+
+## The services wave (PR #7, merged 01:40 UTC as `b580a3b`)
+
+Runs the four service pipelines. Read it with
+`pwsh .claude/skills/exec-narrative/scripts/Get-PipelineState.ps1`. Expected: restore resolves
+`1.0.0-10`, build, package (first images in `acrmrdshared` under the service names), Deploy dev
+creates the first Container Apps. If it is green, re-run observability (step 1 below).
 
 ## Owner actions (the only two things the automation was refused)
 
@@ -107,6 +120,13 @@ What-if shared until the role below is granted.
   deployment then targets a resource that does not exist.
 * Contributor cannot write policy assignments; the first run that reaches a
   `Microsoft.Authorization/*` write with the pipeline identity is where the missing role surfaces.
+* GitVersion in ContinuousDelivery mode with an empty main label produces `1.0.0-<n>`, a
+  prerelease; a consumer pinned to stable `1.0.0` never resolves until a release tag exists.
+  `1.0.*-*` floats to the newest including prereleases (NuGet 5.6+).
+* A pipeline resource trigger fires on the named stage's completion even when the run later
+  fails; the runs it fires validate against that version explicitly, while runs fired by other
+  triggers (base-image tag) validate against the latest *completed successful* run and fail in
+  0 s until one exists.
 * The auto-mode permission classifier blocks ad-hoc permission grants, Azure role assignments,
   bare `gh pr merge`, and `rm -rf`. `.claude/settings.local.json` allows the two tooling scripts
   and those rules are live in a fresh session; the `/merge` skill merged where a bare `gh pr merge`
