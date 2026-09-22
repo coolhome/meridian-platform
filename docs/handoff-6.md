@@ -21,8 +21,9 @@ and it is manual on purpose.
 
 ## State
 
-`main` at `b580a3b`: PR #4 (v1.0.7, `54a282a`, merged 00:02 UTC), PR #6 (v1.0.8, `08c5bb7`,
-00:58 UTC) and PR #7 (services float on the library prerelease, `b580a3b`, 01:40 UTC). PR #5
+`main` at `95fa81e`: PR #4 (v1.0.7, `54a282a`, merged 00:02 UTC), PR #6 (v1.0.8, `08c5bb7`,
+00:58 UTC), PR #7 (services float on the library prerelease, `b580a3b`, 01:40 UTC) and PR #8
+(v1.0.9, `95fa81e`, 02:35 UTC). PR #5
 (`feat/agentic-orchestration`) holds the agent roster, the teardown and deploy scripts'
 documentation, the docs-keeper pass, the identity-script fix and this handoff. Hosted minutes:
 657 before the v1.0.7 wave, 710 after it, 758 after the v1.0.8 wave (about 50 minutes per full
@@ -69,12 +70,23 @@ what-if, alerts' failing periods accepted, and no deploy stage ran after a faile
 | same four | 3943-3945, 3947 and 3954-3957 | red in 0 to 1 s | Mirror-push and base-image-tag triggers that validated before a green libraries run existed. Expected; every containers Promote re-tags `10.0` and fires all four services by design. |
 | observability-cicd | 3949 | red, Deploy dev | Same four `*-restarts` metric alerts; Container Apps still absent. |
 
-## The services wave (PR #7, merged 01:40 UTC as `b580a3b`)
+## The services wave (PR #7, merged 01:40 UTC as `b580a3b`; runs 3958 to 3961)
 
-Runs the four service pipelines. Read it with
-`pwsh .claude/skills/exec-narrative/scripts/Get-PipelineState.ps1`. Expected: restore resolves
-`1.0.0-10`, build, package (first images in `acrmrdshared` under the service names), Deploy dev
-creates the first Container Apps. If it is green, re-run observability (step 1 below).
+All four services **built and tested green for the first time** (restore resolved `1.0.0-10`),
+then every Package stage failed in "Stage publish output into build context" with exit 141:
+`ls -la .publish | head -20` under `set -o pipefail`. `head` closes after 20 lines, `ls` gets
+SIGPIPE, pipefail fails the job, and "Publish image SARIF" then fails because no scan ran.
+The staged output itself was correct (the listing shows the published app). No other early-exit
+pipe exists in the templates.
+
+## The v1.0.9 wave (PR #8, merged 02:35 UTC as `95fa81e`)
+
+The packaging step prints a file count instead. Every consumer pinned to v1.0.9, so all eleven
+pipelines run again (about 50 hosted minutes). Read it with
+`pwsh .claude/skills/exec-narrative/scripts/Get-PipelineState.ps1`. Expected: the four services
+package their first images into `acrmrdshared` and Deploy dev creates the first Container Apps;
+observability then still red until re-run; platform-infrastructure red at What-if shared until
+the role below is granted.
 
 ## Owner actions (the only two things the automation was refused)
 
@@ -123,6 +135,11 @@ creates the first Container Apps. If it is green, re-run observability (step 1 b
 * GitVersion in ContinuousDelivery mode with an empty main label produces `1.0.0-<n>`, a
   prerelease; a consumer pinned to stable `1.0.0` never resolves until a release tag exists.
   `1.0.*-*` floats to the newest including prereleases (NuGet 5.6+).
+* `cmd | head` under `set -o pipefail` exits 141 (SIGPIPE) once `head` stops reading; an
+  informational listing becomes a failed job. Never pipe into an early-exit command in a
+  pipeline script, or drop pipefail for that line.
+* A heredoc terminator ends a `&&` chain in a Bash tool call: everything after it runs
+  unconditionally. Write the message to a file first and keep the chain on one logical line.
 * A pipeline resource trigger fires on the named stage's completion even when the run later
   fails; the runs it fires validate against that version explicitly, while runs fired by other
   triggers (base-image tag) validate against the latest *completed successful* run and fail in
