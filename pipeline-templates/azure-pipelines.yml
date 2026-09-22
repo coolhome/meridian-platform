@@ -19,9 +19,12 @@ variables:
 stages:
 - stage: Validate
   jobs:
+  # v1.1.0 proof run (ADR 0008): this pipeline moves to the self-hosted pool first, unconditionally,
+  # before any consumer opts in. Land this only once meridian-agents exists and carries the
+  # placeholder agent; keep it a separate commit from the rest of the v1.1.0 template changes.
   - job: Lint
     pool:
-      vmImage: ubuntu-24.04
+      name: meridian-agents
     steps:
     - checkout: self
       persistCredentials: false
@@ -43,7 +46,7 @@ stages:
     displayName: Compile consumers against this commit
     dependsOn: Lint
     pool:
-      vmImage: ubuntu-24.04
+      name: meridian-agents
     steps:
     - checkout: self
       persistCredentials: false
