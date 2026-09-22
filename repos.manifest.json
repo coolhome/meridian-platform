@@ -19,8 +19,8 @@
     "artifactsFeed": "meridian",
     "agentPool": "Azure Pipelines",
     "templatesRepository": "meridian-pipeline-templates",
-    "templatesRef": "refs/tags/v1.0.7",
-    "allowedTemplateRefs": ["refs/tags/v1.0.6", "refs/tags/v1.0.7"],
+    "templatesRef": "refs/tags/v1.0.8",
+    "allowedTemplateRefs": ["refs/tags/v1.0.7", "refs/tags/v1.0.8"],
     "containerRegistry": "acrmrdshared",
     "wiki": {
       "name": "Meridian",

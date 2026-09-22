@@ -12,7 +12,11 @@ steps:
 - task: Cache@2
   displayName: Cache NuGet packages
   inputs:
-    key: '"nuget" | "$(Agent.OS)" | **/packages.lock.json, !**/bin/**, !**/obj/**'
+    # Cache@2 fails the job when a key file pattern matches nothing. Only the libraries commit
+    # packages.lock.json (services restore with lockedMode: false), so the project files are part of
+    # the key as well: the pattern always matches, and the key still changes when references change.
+    # Runs 3930 to 3933: "No matching files found for pattern: **/packages.lock.json".
+    key: '"nuget" | "$(Agent.OS)" | **/packages.lock.json, **/*.csproj, !**/bin/**, !**/obj/**'
     restoreKeys: |
       "nuget" | "$(Agent.OS)"
     path: $(NUGET_PACKAGES)

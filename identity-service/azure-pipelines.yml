@@ -16,7 +16,7 @@ resources:
   - repository: templates
     type: git
     name: Meridian/meridian-pipeline-templates
-    ref: refs/tags/v1.0.7
+    ref: refs/tags/v1.0.8
   # Rebuild when the platform libraries publish a new package version.
   pipelines:
   - pipeline: platformLibraries
