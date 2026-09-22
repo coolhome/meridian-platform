@@ -218,3 +218,39 @@ One addendum added to `docs/reference-feedback.md`, Context 5: `AzureStaticWebAp
 Docker internally, which the no-Docker Container Apps pool cannot use; v1.1.0's static-site deploy
 switches to `npx @azure/static-web-apps-cli@2.0.10 deploy` instead. Documented as a design decision
 for v1.1.0, not yet observed on a live pool run (no agent has run a job yet this session).
+
+## Session end, 2026-09-22 12:05 UTC (written by the orchestrator at the owner's stop)
+
+State: `main` is `67cdb57` (PR #14 merged 11:59 UTC: `agentPoolEnabled = true`, ADR 0008, ADR 0006
+note). The owner stored `azdo-agent-pat` in `kv-mrd-shared-ch2609` at 11:58 UTC (scope Agent
+Pools, Read & manage; the PAT lifecycle API is unavailable on this Microsoft-account org: an Entra
+token gets the sign-in page, a PAT gets 403, so the portal is the only way to mint one). The sync
+for `67cdb57` was still running at 12:05 UTC (`governance-ci` 3996 already green); the
+`platform-infrastructure-cicd` run it queues creates `caj-mrd-shared-agent` and
+`caj-mrd-shared-agent-placeholder`; an ops agent was watching it and would then run
+`Initialize-AgentPool.ps1 -RegisterPlaceholder`. At 12:04 UTC: no jobs yet, pool 14 / queue 198,
+no agents. Hosted minutes 967 of 1800. Two approvers (`Approve-PendingApprovals.ps1 -Wait`) were
+running in the session and end with it; the next session starts one before merging anything
+that reaches `shared`.
+
+Held draft PRs, all rebased on `67cdb57`, PR validation green: #15 `ci/templates-ci-on-pool`
+(proof run), #16 `feat/templates-v1.1.0` (head `2f1cbc7`; ADR files identical to main after the
+rebase; preview-compiled clean three times, last on the commit before the rebase, which changed no
+template file), #17 `fix/sibling-app-urls`. Worktrees `azp-test-proof`, `azp-test-templates`,
+`azp-test-services`.
+
+Do next, in order:
+1. Read the infrastructure run that followed `67cdb57` (`Get-PipelineState.ps1`). If Deploy shared
+   failed on the jobs, the ARM error names it: a Key Vault secret reference the job could not read
+   (identity or role), or the scale-rule shape; fix in `modules/container-apps-jobs.bicep`.
+2. `pwsh tooling/Initialize-AgentPool.ps1 -RegisterPlaceholder`, then `-Status` must show
+   `placeholder-agent` (offline is fine). If the placeholder execution fails, its console logs are in
+   `ContainerAppConsoleLogs_CL` on `log-mrd-shared`; the likely causes are the PAT scope, the agent
+   download, or `start.sh`.
+3. Start an approver, merge #15, watch `pipeline-templates-ci` run on the pool (the first job on
+   it; its execution logs are on the same table). Green = the pool works.
+4. Merge #16; the pin-bump wave runs every consumer on the pool at zero hosted minutes; read it by
+   `triggerInfo` as before. Rollback per consumer is `agentPool: hosted`.
+5. Merge #17 (fires app-backend and worker-jobs CI, on the pool). Then the backlog.
+6. The dev teardown test still needs the owner: allow `pwsh ./tooling/Remove-AzureEnvironment.ps1*`
+   and `pwsh ./tooling/Start-EnvironmentDeploy.ps1*` in `.claude/settings.local.json`, or run it.
