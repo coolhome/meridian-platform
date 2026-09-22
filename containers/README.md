@@ -27,6 +27,25 @@ purpose that Promote re-tags the channel and re-fires the four .NET services:
 pwsh tooling/Start-EnvironmentDeploy.ps1 -Environment dev -IncludeShared -Only containers-base-images
 ```
 
+## `agents/`
+
+`agents/azp-agent/` is the self-hosted Azure Pipelines agent image for pool `meridian-agents`
+(`platform-infrastructure/bicep/modules/container-apps-jobs.bicep`: `caj-mrd-shared-agent` and
+`caj-mrd-shared-agent-placeholder`, shared tier). It is built from `base/build-tools:10.0` but
+lives outside `base-images/` on purpose: the CI trigger paths above only cover `base-images/`
+and `image-manifest.json`, so a change here never fires this pipeline. It is not yet in
+`image-manifest.json` and not built, scanned or promoted through `container-images.yml` either;
+that needs Promote to skip unchanged digests first (templates v1.1.0, a separate change), so
+re-promoting the channel tag does not re-fire every consumer over an image none of them use
+yet. Until then it is bootstrapped by hand:
+
+```bash
+az acr build --registry acrmrdshared --image agents/azp-agent:<version> --file Dockerfile .
+```
+
+run from `agents/azp-agent/`. See that folder's own `README.md` for the image's contents and
+the variables `start.sh` reads.
+
 ## Rebuild chain
 
 1. Microsoft publishes a patched `aspnet:10.0-noble-chiseled`.

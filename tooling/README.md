@@ -16,11 +16,12 @@ on first use) and git 2.30+ with `subtree`.
 | `Test-RepoBoundaries.ps1` | ADR 0004 enforcement (also runs in GitHub PR validation) |
 | `Sync-GovernanceOverlay.ps1` | Stamp overlay files into every mirrored folder |
 | `Get-ChangedFolders.ps1` | Map a git diff to mirrored folders (drives the workflows) |
-| `Test-PipelineTemplates.ps1` | Preview-compile every consumer against a templates ref |
+| `Test-PipelineTemplates.ps1` | Preview-compile every consumer against a templates ref (`-TemplatesRef`); `-ConsumerRoot <path>` reads a consumer's pipeline YAML from a local checkout instead of the mirror's default branch, as a `yamlOverride`, so an unpushed consumer change can be previewed too; `-ShowExpanded` writes each expanded pipeline to `$env:TEMP\meridian-preview\<pipeline>.yml`; `-PipelineName <string[]>` limits the run to named consumer pipelines |
 | `Grant-FeedRole.ps1` | Inspect (`-ReadOnly`) or re-apply the Artifacts feed role for the build service outside the bootstrap |
 | `Approve-PendingApprovals.ps1` | Approve pending pipeline approvals from a terminal (`-ListOnly`, `-Wait`) |
 | `Remove-AzureEnvironment.ps1` | Tear down one environment's Azure resources (`-WhatIf`, `-Force`); keeps the Key Vault and the pipeline identity; never `shared` |
 | `Start-EnvironmentDeploy.ps1` | Queue the governed pipelines in dependency order and wait (`-ApproveShared`, `-IncludeShared`, `-Only`); recognises the service runs the libraries Publish stage fired by their `triggerInfo` |
+| `Initialize-AgentPool.ps1` | Org-level self-hosted agent pool for the shared Container Apps agent jobs: `-EnsurePool` (default) creates pool `meridian-agents` (or `azureDevOps.selfHostedPool`) and its project queue, `-AuthorizeAllPipelines` grants every pipeline use of that queue, `-RegisterPlaceholder` starts the placeholder job and waits for an agent to register, `-Status` reports pool/queue/agents/job executions read-only |
 | `lib/Meridian.Ado.psm1` | Shared REST/CLI helpers |
 
 ## What this automation does not do
@@ -38,6 +39,23 @@ service accepts that as nothing to do. `Initialize-AzureDevOps.ps1` now grants t
 it back; `Grant-FeedRole.ps1` remains as the standalone form and as a diagnostic ladder for
 another organization. Context 2 addendum 3 in
 [`docs/reference-feedback.md`](../docs/reference-feedback.md) has the full account.
+
+Three more steps, on the self-hosted agent pool, are a human's or `ops`'s on purpose:
+
+* **Creating the `azdo-agent-pat`.** Nothing here creates or reads this token.
+  `Initialize-AgentPool.ps1` never touches it either: it goes from the owner's terminal
+  straight into Key Vault. Azure DevOps > user settings > Personal access tokens > New Token,
+  scope Agent Pools (Read & manage) only, organization `coolhome`, then
+  `az keyvault secret set --vault-name kv-mrd-shared-<uniqueSuffix> --name azdo-agent-pat --value <pat>`.
+* **Flipping `agentPoolEnabled`.** `platform-infrastructure/bicep/params/shared.bicepparam`
+  stays `false` until the PAT above is stored; `platform-dev` owns the parameter and the module
+  that reads it.
+* **`-AuthorizeAllPipelines`.** A permission grant, the same category as `Grant-FeedRole.ps1`
+  and `Approve-PendingApprovals.ps1`: an agent session's auto-mode permission classifier can
+  refuse it, same as it can refuse `Remove-AzureEnvironment.ps1` and `Start-EnvironmentDeploy.ps1`
+  (see CLAUDE.md's traps list). When that happens the owner or `ops` runs the command directly,
+  or the owner adds the script to `.claude/settings.local.json`'s allow list the way
+  `Grant-FeedRole.ps1` and `Approve-PendingApprovals.ps1` already are.
 
 **Serialization rule for every script here:** a request body that is an array is built with
 `ConvertTo-Json -InputObject @(...)` and never with `-AsArray` on top; print the string you send,
@@ -58,7 +76,10 @@ updates the vault in place, which is why it is not deleted) and `id-<prefix>-<en
 so no soft-deleted copy is recovered by the next run. Role assignments the deleted service
 identities held on the vault and on the shared registry are removed, and the environment's
 subscription-scope policy assignments are deleted unless `-KeepPolicyAssignments`. `shared` is
-refused.
+refused. Every `az` call is pinned to the environment's subscription with `--subscription`, not
+a global `az account set`, including under `-WhatIf`, so a dry run no longer changes the
+operator's default subscription; a resource still present when `-TimeoutMinutes` runs out is
+listed in the summary together with the last delete error for it.
 
 `Start-EnvironmentDeploy.ps1` is `az pipelines run` in dependency order: infrastructure,
 (base images with `-IncludeShared`), libraries, the service pipelines (the .NET ones fire from
@@ -70,7 +91,9 @@ queued), then observability. The fired runs are recognised by `triggerInfo`
 because the default order (finish time) puts an unfinished run behind the completed ones and
 outside `--top 10`. With `-ApproveShared` it runs `Approve-PendingApprovals.ps1 -Wait`
 alongside. Nothing bypasses a check: the environments a pipeline deploys are declared in that
-consumer's `azure-pipelines.yml`.
+consumer's `azure-pipelines.yml`. `-TimeoutMinutes` defaults to 180 (a full wave, not one
+pipeline's run time); a status poll that fails transiently is skipped and retried next cycle
+instead of ending the wait.
 
 ## Authentication
 
