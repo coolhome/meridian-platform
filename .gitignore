@@ -27,3 +27,6 @@ Thumbs.db
 .vs/
 .idea/
 *.swp
+
+# Agent runtime copy of .claude/skills (duplicate; not a mirrored component)
+.agents/

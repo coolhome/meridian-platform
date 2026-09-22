@@ -23,8 +23,18 @@ wrote it unless marked *pending*.
    The bootstrap's PATCH to `packaging/feeds/meridian/permissions` (descriptor and identityId, role
    `contributor`) returns without effect; the next sync logs the raw response as
    `feed permissions PATCH returned:` for diagnosis.
+   Scripted: `pwsh ./tooling/Grant-FeedRole.ps1` (add `-ReadOnly` to inspect first) tries the graph descriptor (`svc....`), the IMS descriptor, the bare identity id and the object form in turn, reading the role back after each; if none persists, paste its output back so the bootstrap can be fixed.
+   **Correction (2026-09-20).** Both helper scripts shipped with the `"$var?"` trap in their URLs
+   (`"$feedsBase?api-version=..."` reads a variable named `feedsBase?`), so on the PAT path they
+   died with `Invalid URI` before sending anything. Fixed; `-ReadOnly` now runs clean and resolves
+   the build service (id `409b6310-180e-4af0-9b5d-0d757059ad80`, role `none`). This means the
+   PATCH has **never actually executed** in any of its four identity forms — the only thing
+   observed failing is the bootstrap's own `az`-based call. Statements in `handoff-4` and
+   `docs/executive/2026-09-19-rollout-narrative-2.md` that the grant "failed through the API in
+   every scripted form" are wrong and should not be carried forward.
 2. **Approve the shared stage** when platform-infrastructure (Deploy shared) and containers-base-images
    (Promote) pause: Pipelines > Environments > shared, or the run page.
+   Scripted: `pwsh ./tooling/Approve-PendingApprovals.ps1 -Wait` with `$env:AZDO_PAT` set (scope Build read and execute) approves each one as it appears; `-ListOnly` shows what is pending without approving.
 3. **Re-queue the four dotnet services and observability** after platform-libraries has one successful
    run: their `platformLibraries` pipeline resource fails validation until then
    ("Unable to resolve latest version for pipeline platformLibraries"). The sandbox refuses

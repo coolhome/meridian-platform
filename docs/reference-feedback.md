@@ -401,9 +401,120 @@ the kind of validated automation knowledge it promises.
 | gitleaks scans history | An inline `gitleaks:allow` on the current line does nothing for the earlier commits that carry the same GUID. | `.gitleaks.toml` with `[extend] useDefault = true` and a `[[allowlists]]` regex. |
 | Pipeline resource without a run | Service pipelines fail validation with "Unable to resolve latest version for pipeline platformLibraries" until that pipeline has one successful run. | Order the first runs; nothing to configure. |
 | hadolint pragma must be bare | `# hadolint ignore=DL3006  (reason)` is ignored; the reason goes on its own comment line. | Two lines. |
-| Feed created by REST has no build-service role | `npm ci` through the feed: 403 "You need to have 'Reader'"; NuGet push would fail the same way. | Contributor for `<Project> Build Service (<org>)`; our PATCH with descriptor and identityId returns without effect (open). |
+| Feed created by REST has no build-service role | `npm ci` through the feed: 403 "You need to have 'Reader'"; NuGet push would fail the same way. The portal's create dialog adds both build services as Collaborator; the REST create adds nothing. | Contributor for `<Project> Build Service (<org>)` via `PATCH packaging/feeds/{feed}/permissions` with a body of `[{identityDescriptor, identityId, role}]`. Resolved 2026-09-21 (addendum 3): our body was `[[...]]`. |
 | Version pins that never existed | trivy 0.65.0 was never released; the download 404 took the scan job and Publish SARIF with it. | Verify release assets (`gh api repos/<owner>/<repo>/releases/tags/v<x>`) when pinning. |
 
 **Wish the reference had:** a page "the first run of a governed template", listing the queue-time
 validations (service connections, pools, pipeline resources, every listed environment) that run
 before a single job starts, and which of them cannot be satisfied with variables.
+
+---
+
+## Context 2 addendum 2: the feed permission grant, and admitting a step is manual
+
+The feed role for the build service is the one provisioning step this platform has never
+completed through an API, and it is the reason `Initialize-AzureDevOps.ps1` does not bootstrap
+end to end. Recording it here because "the documented call returns 200 and does nothing" is
+exactly the class of thing a validated-automation reference should carry.
+
+**What the documented contract says.** `PATCH packaging/feeds/{feedId}/permissions` takes an
+array of `{identityDescriptor, role}`. The azure-devops CLI's own SDK types `identityDescriptor`
+as a string, so the shape the bootstrap sends is valid.
+
+**What happens.** The call returns HTTP 200 with `{"count":0,"value":[]}` and the permission list
+is unchanged. No error, no partial write, nothing to retry against. A read-back is the only way
+to know it failed, which is why the bootstrap now reads back after every grant and treats a
+missing role as a manual step rather than a warning.
+
+**Settled 2026-09-20: no identity shape works.** `tooling/Grant-FeedRole.ps1` ran all six forms
+against the documented `feeds.dev.azure.com` endpoint with a PAT: graph subject descriptor alone;
+graph descriptor with identityId and displayName; IMS descriptor with identityId and displayName
+(the bootstrap's shape); IMS descriptor alone; identityId alone; and the `{identityType,
+identifier}` object from the 7.1 reference page. **Every one returned HTTP 200 with
+`{"count":0,"value":[]}` and the read-back showed no entry.** The graph-descriptor hypothesis is
+dead. The GET on the same endpoint with the same token works, so the token reaches the service.
+
+**Scope was then ruled out too.** The script now probes write capability before concluding: it
+PATCHes the feed's own description to the value it already holds, which needs *Packaging (read,
+write and manage)* and changes nothing. That write is **accepted**. The same token, in the same
+run, cannot make a single permissions entry stick. Feed addressed by GUID instead of name: same.
+api-versions 6.0-preview.1 and 7.0-preview.1: same.
+
+So it is not the token, not the identity form, not the api-version and not how the feed is
+addressed. The `permissions` route accepts the request, answers 200 with an empty collection and
+persists nothing. **The grant cannot be automated through this API, and the portal is the only
+path.** That is now a finding rather than a suspicion, and the bootstrap reports it as a step a
+human must perform instead of pretending it might have worked.
+
+A trap worth its own line: the first version of these diagnostics named a local variable `$feed`
+while the parameter was `$Feed`. PowerShell variable names are case-insensitive, so the feed
+object overwrote the feed name and every probe URL after it was malformed -- which produced a
+confident and completely wrong "token scope" verdict. Diagnostics that can fail silently need
+their own sanity check; this one prints the resolved feed name and id before it draws any
+conclusion.
+
+**A trap that hid the answer for a full session.** The first version of that script, and of
+`Approve-PendingApprovals.ps1`, built their URLs as `"$feedsBase?api-version=..."`. PowerShell
+accepts `?` as a variable-name character, so that reads a variable named `feedsBase?`, which is
+empty, and the request goes out with the query string as the whole URI:
+`Invalid URI: The hostname could not be parsed.` Both scripts died before sending anything, on
+the PAT path only — the `az devops invoke` fallback has no interpolated URL and worked fine,
+which is what made the bug look like a service-side refusal. The fix is `"${feedsBase}?..."`.
+This is the second time this exact trap has cost this project a session (see Context 9
+addendum, third session). Grep for `\$[A-Za-z_][A-Za-z0-9_]*\?` before shipping a PowerShell
+script that builds a URL.
+
+**The wider point.** We spent two sessions asserting in handoffs and executive notes that the
+grant "has failed through the API in every scripted form attempted." It had not: the PAT path
+never executed. An automation gap and a broken script produce the same symptom — nothing
+happens — and we defaulted to the more interesting explanation. The platform now states the
+manual steps in three places (root `README.md`, `tooling/README.md`, and a numbered block the
+bootstrap prints when it finishes) and distinguishes the approval gate, which is manual by
+design, from the feed grant, which is a defect we have not closed.
+
+**Wish the reference had:** a page on Azure Artifacts feed permissions as an automation target —
+which identity descriptor flavour the feeds service accepts, that the PATCH is silently
+idempotent-on-failure, and that a read-back is mandatory. More generally, a convention for
+documenting the steps a bootstrap *cannot* perform, since every real platform has some and
+leaving them in a warning stream guarantees they are missed.
+
+---
+
+## Context 2 addendum 3: the feed grant was automatable all along (2026-09-21)
+
+Addendum 2 is kept above as written because its conclusion was wrong and the way it went wrong is
+the useful part. The grant persisted on the first attempt of the fifth session, with the
+bootstrap's original shape (IMS descriptor + `identityId` + `displayName`), once one token was
+removed from the code that serialized the body.
+
+**The defect.** `ConvertTo-Json -InputObject @(@{...}) -AsArray`. The input is already an
+array; `-AsArray` wraps it again. The wire body was therefore `[[{"identityDescriptor":...}]]`
+— an array containing an array — not a `FeedPermission[]`. The feeds service accepted that as
+"zero permissions to set", answered HTTP 200 `{"count":0,"value":[]}`, and persisted nothing.
+Every one of the nine identity shapes, three api-versions, the feed-by-GUID probe and the
+description-write probe went out inside the extra brackets. The same token sat in
+`Initialize-AzureDevOps.ps1` (so the bootstrap's PATCH had the same body) and in
+`Approve-PendingApprovals.ps1` (whose approvals PATCH would have approved nothing, silently).
+
+**What made it invisible.** The script printed `ConvertTo-Json` of the *PowerShell object*, not
+the bytes it sent; each attempt's log line began `[[` and nobody read the brackets, because the
+attention was on the identity string inside them. The description-write probe "proved" the
+token could write, which was true, and narrowed the blame to the permissions route — a
+conclusion that was consistent with every observation and still wrong. Two handoffs, an
+executive narrative and a README section repeated it.
+
+**Correct wire contract** (documented, and now observed): `PATCH
+https://feeds.dev.azure.com/{org}/{project}/_apis/packaging/Feeds/{feedId}/permissions?api-version=7.1-preview.1`
+with body `[{"identityDescriptor":"Microsoft.TeamFoundation.ServiceIdentity;<guid>:Build:<projectId>","identityId":"<id>","displayName":"<Project> Build Service (<org>)","role":"contributor"}]`
+returns `{"count":1,"value":[{"role":"contributor","identityDescriptor":"...","displayName":null,"isInheritedRole":false}]}`
+and the read-back shows the entry. A PAT with *Packaging (read, write and manage)* is enough.
+
+**What the reference could carry.** Not this bug — it is ours — but two things around it:
+(1) the service's response to a malformed body is 200 with an empty collection rather than 400,
+so a read-back after any permissions write is mandatory; (2) a one-line rule for PowerShell
+automation: print the serialized request body, not the object, and treat a leading `[[` as the
+first suspect when a write returns an empty result.
+
+**Manual steps, revised.** The platform has one: the `shared` environment approval, which is
+manual by design. The root `README.md`, `tooling/README.md` and the bootstrap's closing banner
+now say so.

@@ -102,13 +102,28 @@ stages:
                 command: push
                 packagesToPush: $(Pipeline.Workspace)/packages/*.nupkg
                 nuGetFeedType: internal
-                publishVstsFeed: ${{ parameters.feed }}
+                # Project-scoped feed: the id must be "<project>/<feed>". Bare "<feed>" resolves to
+                # the organisation-scoped URL and the push 404s with TF1600011 "feed doesn't exist"
+                # regardless of permissions (run 3815).
+                publishVstsFeed: $(System.TeamProject)/${{ parameters.feed }}
 
+  # Every prerequisite is explicit. A stage without dependsOn inherits whichever stage happens to
+  # precede it in the file (service.yml documents the run that proved it). Promotion order is chained.
   - ${{ if ne(coalesce(parameters.infra.templatePath, ''), '') }}:
     - ${{ each env in parameters.environments }}:
       - stage: Deploy_${{ env }}
         displayName: Deploy infra ${{ env }}
+        dependsOn:
+        - Publish
+        - ${{ if and(eq(env, 'test'), containsValue(parameters.environments, 'dev')) }}:
+          - Deploy_dev
+        - ${{ if and(eq(env, 'prod'), containsValue(parameters.environments, 'test')) }}:
+          - Deploy_test
+        - ${{ if and(eq(env, 'prod'), not(containsValue(parameters.environments, 'test')), containsValue(parameters.environments, 'dev')) }}:
+          - Deploy_dev
         condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+        ${{ if eq(env, 'prod') }}:
+          lockBehavior: sequential
         variables:
         - template: ../../variables/common.yml
         - template: ../../variables/environment.yml
@@ -127,6 +142,10 @@ stages:
   - ${{ if containsValue(parameters.environments, 'prod') }}:
     - stage: Release
       displayName: Tag release
+      dependsOn:
+      - Publish
+      - ${{ if ne(coalesce(parameters.infra.templatePath, ''), '') }}:
+        - Deploy_prod
       condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
       variables:
       - template: ../../variables/common.yml

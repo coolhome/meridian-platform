@@ -87,9 +87,24 @@ stages:
 
 - ${{ if eq(parameters.deploy, true) }}:
   - ${{ each env in parameters.environments }}:
-    # No dependsOn: stages without one run in file order, which gives dev -> test -> prod.
+    # Every prerequisite is explicit. Relying on file order made a deploy stage inherit whichever
+    # stage preceded it: for dotnet-* that was Package (dependsOn Build, Scan) and the chain held,
+    # but for node-spa there is no Package stage, so Deploy_dev inherited Scan, and Scan declares
+    # dependsOn: [] so it runs beside Build. condition: succeeded() then evaluated Scan alone and a
+    # failed build did not stop the deployment (run 3812). Promotion order is chained below.
     - stage: Deploy_${{ env }}
       displayName: Deploy ${{ env }}
+      dependsOn:
+      - Build
+      - Scan
+      - ${{ if startsWith(parameters.kind, 'dotnet-') }}:
+        - Package
+      - ${{ if and(eq(env, 'test'), containsValue(parameters.environments, 'dev')) }}:
+        - Deploy_dev
+      - ${{ if and(eq(env, 'prod'), containsValue(parameters.environments, 'test')) }}:
+        - Deploy_test
+      - ${{ if and(eq(env, 'prod'), not(containsValue(parameters.environments, 'test')), containsValue(parameters.environments, 'dev')) }}:
+        - Deploy_dev
       condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
       ${{ if eq(env, 'prod') }}:
         lockBehavior: sequential
@@ -117,6 +132,8 @@ stages:
 - ${{ if and(eq(parameters.deploy, true), containsValue(parameters.environments, 'prod')) }}:
   - stage: Release
     displayName: Tag release
+    dependsOn:
+    - Deploy_prod
     condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
     variables:
     - template: ../../variables/common.yml

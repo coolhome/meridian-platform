@@ -15,7 +15,7 @@ resources:
   - repository: templates
     type: git
     name: Meridian/meridian-pipeline-templates
-    ref: refs/tags/v1.0.6
+    ref: refs/tags/v1.0.7
   pipelines:
   - pipeline: platformLibraries
     source: platform-libraries-cicd

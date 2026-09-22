@@ -84,8 +84,49 @@ flowchart LR
    pwsh ./tooling/Publish-Platform.ps1
    ```
 
-4. From then on the GitHub workflow `sync-to-azure-repos.yml` does step 3 on every push to
+4. Complete the manual steps the bootstrap reports (see below). The platform is not fully
+   provisioned until they are done.
+
+5. From then on the GitHub workflow `sync-to-azure-repos.yml` does step 3 on every push to
    `main` or `release/*` for the folders that changed.
+
+## The one step automation does not perform
+
+The bootstrap provisions everything, including the Artifacts feed role for the project build
+service (a feed created through REST grants the build service nothing, so the bootstrap adds
+Contributor and reads it back; for two sessions this looked impossible because of a serialization
+bug in our own scripts — see Context 2 addendum 3 in
+[`docs/reference-feedback.md`](docs/reference-feedback.md)). One step stays with a human on
+purpose:
+
+| Step | Why it is manual | Blast radius if skipped |
+| --- | --- | --- |
+| **Approve the `shared` environment** when a run pauses on it | An approval is a human gate by definition. Automating it away would defeat the control the platform exists to demonstrate. | `platform-infrastructure` (Deploy shared) and `containers-base-images` (Promote) wait up to 24 hours, then fail. |
+
+The approval can be recorded from a terminal instead of the portal (`AZDO_PAT` with Build
+read and execute), and the feed role can be inspected or re-applied the same way:
+
+```bash
+pwsh ./tooling/Approve-PendingApprovals.ps1 -ListOnly   # what is waiting
+pwsh ./tooling/Approve-PendingApprovals.ps1 -Wait       # approve each pause as it appears
+pwsh ./tooling/Grant-FeedRole.ps1 -ReadOnly             # current feed role of the build service
+```
+
+## Tearing an environment down and building it again
+
+Every environment except `shared` can be removed and recreated without touching Azure DevOps:
+
+```bash
+pwsh ./tooling/Remove-AzureEnvironment.ps1 -Environment dev -WhatIf   # inventory and plan
+pwsh ./tooling/Remove-AzureEnvironment.ps1 -Environment dev -Force    # delete
+pwsh ./tooling/Start-EnvironmentDeploy.ps1 -Environment dev -ApproveShared   # queue the governed pipelines in order
+```
+
+Teardown keeps two resources: the environment's Key Vault (purge protection reserves its name
+for 90 days, and an idle vault costs nothing) and the pipeline identity the service connection
+federates to. Everything else, including the Log Analytics workspace, is deleted permanently.
+Redeploy is nothing more than the same pipelines a merge would trigger, queued in dependency
+order; every check still applies. `shared` is never torn down by script.
 
 ## Local development
 
