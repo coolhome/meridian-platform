@@ -17,7 +17,7 @@ resources:
   - repository: templates
     type: git
     name: Meridian/meridian-pipeline-templates
-    ref: refs/tags/v1.0.8
+    ref: refs/tags/v1.0.9
 
 # The consumer owns the single root variables block (the template declares none at root).
 variables:
