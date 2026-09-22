@@ -13,7 +13,9 @@ working agreement; this file adds your specifics.
 
 `app-frontend/`: a React/Vite SPA deployed to Azure Static Web Apps (Free SKU, ADR 0007) by
 the service template's `node-spa` kind. `infra/main.bicep` creates the static web app; the
-deployment token is read at deploy time, never stored.
+deployment token is read at deploy time, never stored. Not yours inside the folder:
+`README.md` (`docs-keeper`), `azure-pipelines.yml` and `pipelines/*.yml` (`pipelines-dev`),
+`SECURITY.md` (overlay).
 
 ## Rules that bite here
 

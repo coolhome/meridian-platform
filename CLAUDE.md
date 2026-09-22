@@ -29,21 +29,29 @@ and what tripped you up in `docs/reference-feedback.md` (per context, honest).
 
 | Agent | Owns (may edit) | Never edits |
 | --- | --- | --- |
-| `orchestrator` (main session) | `repos.manifest.json`, root `README.md`, `CLAUDE.md`, `.claude/`, merges and pushes | mirrored folders directly when an owner exists |
-| `pipelines-dev` | `pipeline-templates/`, `governance/`, every consumer's `azure-pipelines.yml` and `pipelines/*.yml` (pins, parameters) | application code, Bicep under services |
-| `platform-dev` | `platform-infrastructure/`, `containers/`, `observability/` | pipeline templates |
-| `services-dev` | `identity-service/`, `approval-service/`, `app-backend/`, `worker-jobs/`, `platform-libraries/` (code, tests, each service's `infra/`) | templates, tooling |
-| `frontend-dev` | `app-frontend/` | everything else |
-| `tooling-dev` | `tooling/`, `.github/workflows/` | mirrored folders |
-| `ops` | nothing in git; runs pipelines, approvals, teardown/redeploy, reads Azure and Azure DevOps state | any file (reports instead) |
+| `orchestrator` (main session) | `repos.manifest.json`, `CLAUDE.md`, `.claude/` except `.claude/agent-memory/`, the session's persistent memory notes, branches, commits, PRs, merges | mirrored folders directly when an owner exists |
+| `pipelines-dev` | `pipeline-templates/` (not its `README.md`), `governance/` including the overlay in `governance/templates/overlay/` and the ADR bodies, every consumer's `azure-pipelines.yml` and `pipelines/*.yml` (pins, parameters) | application code, Bicep under services |
+| `platform-dev` | `platform-infrastructure/`, `containers/`, `observability/` except each folder's `README.md`, `azure-pipelines.yml` and `pipelines/*.yml` | pipeline templates |
+| `services-dev` | `identity-service/`, `approval-service/`, `app-backend/`, `worker-jobs/`, `platform-libraries/` (code, tests, each service's `infra/`) except each folder's `README.md`, `azure-pipelines.yml` and `pipelines/*.yml` | templates, tooling |
+| `frontend-dev` | `app-frontend/` except its `README.md`, `azure-pipelines.yml` and `pipelines/*.yml` | everything else |
+| `tooling-dev` | `tooling/` (not its `README.md`), `.github/workflows/` | mirrored folders |
+| `ops` | nothing in git except throwaway branches on the `meridian-pipeline-templates` mirror for preview compiles (never `main`, `release/*` or tags); runs pipelines, approvals, teardown/redeploy, reads Azure and Azure DevOps state | any file (reports instead) |
 | `reviewer` | nothing; verifies and reports findings with file:line | any file |
-| `docs-keeper` | every `*.md` that describes the platform (folder READMEs, `pipeline-templates/README.md` contract, `tooling/README.md`, ADRs, root README); runs after every change | code, YAML, Bicep, scripts; the session record below |
-| `scribe` | `docs/handoff-*.md`, `docs/reference-feedback.md`, `docs/executive/`, agent memory | code, YAML, Bicep |
+| `docs-keeper` | exactly these: the root `README.md`, every folder's `README.md`, `pipeline-templates/README.md` (the consumer contract), `tooling/README.md`, the `Status` line and a dated note in any ADR; runs after the owning dev's task is complete | code, YAML, Bicep, scripts, ADR decisions, files stamped from the overlay (`SECURITY.md`), `.claude/`, the session record below |
+| `scribe` | `docs/handoff-*.md`, `docs/reference-feedback.md`, `docs/executive/`; drafts memory notes for the orchestrator to save | code, YAML, Bicep, any `README.md` |
 
 Ownership follows the repo boundary rule on purpose: one folder group, one agent, no
 cross-folder edits, so agents working at the same time do not collide in the shared checkout.
-A change that spans owners is split by the orchestrator into one task per owner, with the
-dependency stated (for example: templates first, then consumer pins).
+Where a file is carved out of a folder above (READMEs, consumer pipeline YAML), the carve-out
+wins. A change that spans owners is split by the orchestrator into one task per owner, with
+the dependency stated (for example: templates first, then consumer pins, then docs).
+
+These exclusivities are conventions the agents are told, not enforcement: every agent has the
+tools its definition allows, and rules in `.claude/settings.local.json` apply to every agent
+in the session. If the owner wants them enforced, a `PreToolUse` hook that refuses the
+exclusive commands (`Grant-FeedRole`, `Approve-PendingApprovals`, `Start-EnvironmentDeploy`,
+`Remove-AzureEnvironment`, `gh pr merge`) for the dev agents is the mechanism; that is the
+owner's call, not an agent's.
 
 ## How the orchestrator works
 
@@ -62,16 +70,18 @@ dependency stated (for example: templates first, then consumer pins).
    "Definition of done"). For anything that will trigger hosted minutes, ask `reviewer` for an
    independent pass first: it is cheaper than a wave.
 4. **You alone integrate**: branch, commit (focused commits, one concern each), PR, merge, and
-   the merge is what triggers the mirror sync and the pipeline wave. Preview-compile templates
-   before merging (`tooling/Test-PipelineTemplates.ps1` against a mirror branch) instead of
+   the merge is what triggers the mirror sync and the pipeline wave. Before merging a template
+   change, have `ops` preview-compile it (it pushes the templates folder to a throwaway mirror
+   branch, runs `tooling/Test-PipelineTemplates.ps1` against it, deletes the branch) instead of
    spending a wave to find a compile error.
 5. **Docs follow every change.** When a dev reports `[done]`, hand the diff to `docs-keeper`
-   before the PR is opened; it fixes every README, contract, ADR and table the change made
-   stale and reports the claims it could not verify. A PR is not ready until `docs-keeper` has
-   reported on it.
+   before the PR is opened; it fixes the READMEs, the templates contract, the tooling table and
+   ADR status lines the change made stale and reports the claims it could not verify. A PR is
+   not ready until `docs-keeper` has reported on it.
 6. **Report to the owner** the way they can act on: outcome first, what was verified, what was
    left out and why, the one thing only they can do (if any). Close with `scribe` updating the
-   handoff and memory when a session's work changes what the next session should know.
+   handoff and drafting the memory note; you save the memory note yourself, because a
+   subagent cannot see or write the main session's persistent memory.
 
 ## Definition of done for a dev agent
 

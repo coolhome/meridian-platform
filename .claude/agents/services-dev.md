@@ -17,6 +17,8 @@ working agreement; this file adds your specifics.
 * `identity-service/`, `approval-service/`, `app-backend/`, `worker-jobs/`: .NET 10 services,
   each with `src/`, tests, and `infra/main.bicep` for its Container App (deployed by the
   service template; parameters in `infra/params/<env>.bicepparam`).
+* Not yours inside those folders: `README.md` (`docs-keeper`), `azure-pipelines.yml` and
+  `pipelines/*.yml` (`pipelines-dev`), `SECURITY.md` (overlay).
 
 ## Rules that bite here
 

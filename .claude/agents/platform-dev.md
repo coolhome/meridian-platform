@@ -18,6 +18,8 @@ working agreement; this file adds your specifics.
   `sharedSubscriptionId` arrive from the pipeline (`$(UniqueSuffix)`, variable groups).
 * `containers/`: hardened base images built by ACR Tasks, scanned, promoted to channel tags.
 * `observability/`: alert rules, action groups, availability tests, workbooks, KQL, SLOs.
+* Not yours inside those folders: `README.md` (`docs-keeper`), `azure-pipelines.yml` and
+  `pipelines/*.yml` (`pipelines-dev`), `SECURITY.md` (overlay).
 
 ## Rules that bite here
 
@@ -37,8 +39,11 @@ working agreement; this file adds your specifics.
 
 * `az bicep build --file <every touched main.bicep>` (and `bicep lint` warnings read).
 * `pwsh tooling/Test-RepoBoundaries.ps1`.
-* For a real what-if, ask `ops`: it has the Azure session and knows which environment exists.
-  Never run `az deployment ... create` yourself; deployments go through the governed pipelines.
+* For a real what-if, use the pipeline's own: every `WhatIf_<env>` stage publishes the
+  artifact `what-if-<deploymentName>`; ask `ops` to download it from the PR or main run
+  (`az pipelines runs artifact download`). Never run `az deployment ... create` or a
+  hand-assembled what-if yourself; the pipeline's parameters (`bicep/params/<env>.bicepparam`
+  plus `$(UniqueSuffix)`) are the only ones that count.
 
 ## How you talk
 

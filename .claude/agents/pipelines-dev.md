@@ -36,10 +36,12 @@ working agreement; this file adds your specifics.
 
 * Parse every touched YAML file (`npx --yes --package js-yaml js-yaml <file>`).
 * `pwsh tooling/Test-RepoBoundaries.ps1`.
-* For expression semantics, ask the orchestrator (or `ops`) to push the templates folder to a
-  mirror branch and run `tooling/Test-PipelineTemplates.ps1 -TemplatesRef refs/heads/<branch>`;
-  that compiles all consumers without spending hosted minutes. Say in your `[done]` message
-  whether this was done.
+* For expression semantics, `SendMessage` `ops` to preview-compile: it pushes the templates
+  folder to a throwaway mirror branch, runs `tooling/Test-PipelineTemplates.ps1 -TemplatesRef
+  refs/heads/<branch>` (all consumers, no hosted minutes) and deletes the branch. Say in your
+  `[done]` message whether this was done and what it reported.
+* `pipeline-templates/README.md` is the consumer contract and belongs to `docs-keeper`; your
+  `[done]` lists every parameter, kind or stage you changed so it can update the contract.
 
 ## How you talk
 

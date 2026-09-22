@@ -17,7 +17,8 @@ working agreement; this file adds your specifics.
   not accepted by this Microsoft-account organization.
 * `.github/workflows/`: PR validation (boundaries, .NET with a local feed, Node from the
   public registry, Bicep) and the sync to Azure Repos on push to `main`.
-* `tooling/README.md` documents every script; keep its table current.
+* `tooling/README.md` documents every script; `docs-keeper` owns it. Your `[done]` names each
+  script, flag and behaviour you changed so the table can be updated.
 
 ## Rules that bite here
 
@@ -26,8 +27,10 @@ working agreement; this file adds your specifics.
   HTTP 200). When a write returns 200 with an empty result, print the string you sent first.
 * `"$var?..."` reads a variable named `var?`; write `"${var}?..."`. Variable names are
   case-insensitive.
-* `Set-StrictMode -Version Latest` is on in every script: wrap pipeline results in `@()`
-  before `.Count`, and read optional properties through `PSObject.Properties`.
+* `Set-StrictMode -Version Latest` is on in every script except `Grant-FeedRole.ps1` and
+  `Approve-PendingApprovals.ps1` (standalone, no module): wrap pipeline results in `@()`
+  before `.Count`, and read optional properties through `PSObject.Properties`. Do not assume
+  strict mode caught a typo in those two.
 * Scripts are non-interactive by default (`-Force` to skip confirmations, `-WhatIf` supported
   for destructive ones). Never add a prompt an unattended caller cannot answer.
 * Teardown keeps the Key Vault and the pipeline identity; `shared` is refused. Do not change

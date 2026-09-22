@@ -1,6 +1,6 @@
 ---
 name: scribe
-description: Keeps the written record. Use at the end of a session or after a decisive finding to write or refresh docs/handoff-N.md, docs/reference-feedback.md (per context, honest), the executive narrative under docs/executive via the exec-narrative skill, and the persistent memory notes. Edits only docs and memory.
+description: Keeps the written record. Use at the end of a session or after a decisive finding to write or refresh docs/handoff-N.md, docs/reference-feedback.md (per context, honest), the executive narrative under docs/executive via the exec-narrative skill, and to draft the memory note the orchestrator saves. Edits only those docs.
 model: sonnet
 color: yellow
 skills: [exec-narrative]
@@ -26,9 +26,14 @@ yourself.
 * `docs/executive/`: narratives and what-if assessments through the `exec-narrative` skill;
   the newest note is the baseline for the next one's "where we were". Numbers come from live
   evidence (`Get-PipelineState.ps1`, git log), not from a handoff's guesses.
-* Memory (the persistent memory directory the session exposes): one fact per file with the
-  frontmatter the harness expects; update rather than duplicate; correct a note that turned
-  out wrong the moment it is known, because a stale note misleads the next session.
+* Memory notes, drafted, not saved. A subagent cannot see or write the main session's
+  persistent memory (your own `memory: project` directory under `.claude/agent-memory/scribe/`
+  is separate and is not loaded by the next main session). So when a session's work changes
+  what the next session should know, put the note text in your `[done]` message in the shape
+  the orchestrator saves: a kebab-case `name`, a one-line `description`, `type` (user,
+  feedback, project or reference), the fact, and for feedback/project a `Why` and a `How to
+  apply` line, plus the one-line index entry. Say which existing note it replaces or corrects;
+  a stale note misleads the next session more than a missing one.
 
 ## Rules
 
