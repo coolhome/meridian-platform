@@ -11,7 +11,11 @@
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <InvariantGlobalization>true</InvariantGlobalization>
     <!-- Meridian.* packages come from the meridian feed (nuget.config source mapping). Bump deliberately. -->
-    <MeridianPackageVersion Condition="'$(MeridianPackageVersion)' == ''">1.0.0</MeridianPackageVersion>
+    <!-- Meridian.* packages come from the meridian feed (nuget.config source mapping). GitVersion stamps every
+         untagged main build of platform-libraries as a prerelease (1.0.0-<n>) until a release tag exists, so dev
+         floats to the newest 1.0.x including prereleases (NuGet 5.6+ syntax). A stable 1.0.0 pin matched nothing
+         on the feed (runs 3950 to 3953, NU1102). Lock files pin an exact version once they are committed. -->
+    <MeridianPackageVersion Condition="'$(MeridianPackageVersion)' == ''">1.0.*-*</MeridianPackageVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(TF_BUILD)' == 'true' or '$(GITHUB_ACTIONS)' == 'true'">
