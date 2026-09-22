@@ -399,3 +399,4 @@ if ($manualSteps.Count -gt 0) {
     Write-Host " See 'The one step automation does not perform' in README.md.`n" -ForegroundColor Yellow
 }
 Write-Host "`nBootstrap complete. Next: pwsh tooling/Publish-Platform.ps1" -ForegroundColor Green
+Write-Host "Optional, once platform-infrastructure has deployed the shared Container Apps agent jobs: pwsh tooling/Initialize-AgentPool.ps1 -Status (see its header for the full sequence)." -ForegroundColor DarkGray

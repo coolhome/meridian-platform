@@ -597,3 +597,52 @@ base-image re-import), about 40 hosted minutes per set of four at parallelism 1.
   at 03:18). That distorts wall-clock readings of the producer and breaks any detection window
   anchored on the producer's finish time; the window has to start at the producer's queue time
   and match on `triggerInfo.pipelineId`.
+
+---
+
+## Context 11: Agent hosting, Managed DevOps Pools vs. Container Apps jobs (2026-09-22)
+
+New context: no working session had touched agent hosting before today. Page used:
+`domain/azure-pipelines/agent-hosting/index.md`, fetched for the assessment
+`docs/executive/2026-09-22-self-hosted-capacity-assessment.md`.
+
+**Helpful**
+
+* One decision table up front (Microsoft-hosted / VMSS / Managed DevOps Pools / ACA+KEDA / plain
+  self-hosted, each with cost, scale-to-zero, image control, network, Docker) meant we did not
+  have to build that comparison ourselves from five separate Learn pages.
+* "The PAT is used only during registration; ongoing agent-server communication uses a per-agent
+  listener token" was stated plainly and Microsoft Learn's agent-authentication pages confirmed
+  it word for word. Saved a round of worrying about PAT expiry killing a running agent mid-job.
+* The placeholder-agent requirement for a scaled-to-zero ACA pool, and the warning that deleting
+  it leaves the pool with zero agents and every pipeline failing immediately, is the kind of
+  "the demo works, then you delete the wrong thing" trap this project has hit before elsewhere
+  (see Context 9). Worth having called out ahead of building it.
+
+**Tripped us up**
+
+* The page's Managed DevOps Pools section covers setup, permissions, images and cost, but never
+  says an Entra-connected Azure DevOps organization is a hard prerequisite, only that PAT-less
+  registration is "the productized path" for MDP. That framing reads as an upgrade over PAT, not
+  as a gate this specific organization fails. We found the actual blocker by cross-checking our
+  own `docs/handoff.md` (`TF400813`, Microsoft-account-owned org, session two) against Microsoft
+  Learn's prerequisites page, not from the reference. For a Microsoft-account-owned organization
+  like `coolhome`, this is the single fact that decides the whole assessment, and the reference
+  did not carry it.
+* The table lists MDP's Docker support as "Image-dependent" with no pointer to which images
+  qualify. Learn's own image list (the "Azure Pipelines" quick-starter images, matching the
+  Microsoft-hosted software set including Docker) answered it, but took a second fetch.
+
+**Wish it had**
+
+* A note that VMSS, MDP, ACA and plain self-hosted agents all draw from the same "self-hosted
+  parallel jobs" licensing pool, separate from Microsoft-hosted jobs, and that the first
+  self-hosted job is free and automatically granted (no billing action, unlike the
+  Microsoft-hosted free tier which has to be enabled). The reference's cost framing reads as
+  though buying a parallel job is the first step of adopting any self-hosted option; Microsoft
+  Learn's pricing page corrected that today, and it changes the recommended scope (no purchase
+  needed to match today's parallelism of 1).
+* Concrete cold-start numbers for ACA jobs specifically (the tutorial has none; MDP's standby-agent
+  page gives 10 seconds to a minute with standby, up to 15 minutes without, but nothing comparable
+  exists for the ACA path). We could not verify a cold-start figure for Container Apps jobs from
+  either source today and said so in the assessment rather than guess.

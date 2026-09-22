@@ -51,18 +51,27 @@ if ($sub -notmatch '^[0-9a-f-]{36}$') { throw "environment '$Environment' has no
 $pipelineIdentity = $envDef.azure.identityName
 $sharedRg = "rg-$prefix-shared-platform"
 $registry = $m.azureDevOps.containerRegistry
+# The shared registry can live in a different subscription than the environment being torn down;
+# read it from environments.json's shared block instead of assuming it shares $sub.
+$sharedEnvDef = $envDefs.environments | Where-Object { $_.name -eq 'shared' } | Select-Object -First 1
+if (-not $sharedEnvDef -or -not $sharedEnvDef.PSObject.Properties['azure']) { throw "environment 'shared' has no azure block in environments.json" }
+$sharedSub = $sharedEnvDef.azure.subscriptionId
 
 function Invoke-Az {
-    # az with JSON output; returns $null on a non-zero exit instead of throwing, callers decide.
-    param([Parameter(ValueFromRemainingArguments)][string[]]$Args)
-    $out = & az @Args -o json --only-show-errors 2>&1
-    if ($LASTEXITCODE -ne 0) { Write-MeridianWarn (($out | Where-Object { $_ -is [string] }) -join ' '); return $null }
+    # az with JSON output, pinned to the environment's subscription with --subscription on every call
+    # (not a global `az account set`, which would change the operator's default subscription even on
+    # a -WhatIf run); pass -Subscription to target a different one for a single call (the shared
+    # registry, above). Returns $null on a non-zero exit instead of throwing, callers decide.
+    param([Parameter(ValueFromRemainingArguments)][string[]]$Args, [string]$Subscription = $sub)
+    $out = & az @Args --subscription $Subscription -o json --only-show-errors 2>&1
+    if ($LASTEXITCODE -ne 0) { Write-MeridianWarn (($out | ForEach-Object { $_.ToString() }) -join ' '); return $null }
     $text = ($out | Where-Object { $_ -is [string] }) -join "`n"
     if ([string]::IsNullOrWhiteSpace($text)) { return $null }
     return $text | ConvertFrom-Json -Depth 32
 }
 
-& az account set --subscription $sub --only-show-errors
+# No global `az account set`: every az call below (through Invoke-Az or with an explicit
+# --subscription $sub) is pinned to the environment's subscription, including during -WhatIf.
 $rgPlatform = "rg-$prefix-$Environment-platform"
 $rgApps = "rg-$prefix-$Environment-apps"
 $rgData = "rg-$prefix-$Environment-data"
@@ -71,7 +80,7 @@ $rgData = "rg-$prefix-$Environment-data"
 Write-MeridianStep "inventory for $Environment (subscription $sub)"
 $existing = @{}
 foreach ($rg in @($rgApps, $rgData, $rgPlatform)) {
-    $exists = (& az group exists --name $rg --only-show-errors) -eq 'true'
+    $exists = (& az group exists --name $rg --subscription $sub --only-show-errors) -eq 'true'
     $existing[$rg] = $exists
     if (-not $exists) { Write-MeridianInfo "$rg does not exist"; continue }
     $resources = @(Invoke-Az resource list -g $rg)
@@ -85,7 +94,7 @@ $keyVault = $platformResources | Where-Object { $_.type -eq 'Microsoft.KeyVault/
 $pipelineMi = $platformResources | Where-Object { $_.type -eq 'Microsoft.ManagedIdentity/userAssignedIdentities' -and $_.name -eq $pipelineIdentity } | Select-Object -First 1
 $serviceMis = @($platformResources | Where-Object { $_.type -eq 'Microsoft.ManagedIdentity/userAssignedIdentities' -and $_.name -ne $pipelineIdentity })
 $keepIds = @(@($keyVault, $pipelineMi) | Where-Object { $_ } | ForEach-Object { $_.id })
-$servicePrincipalIds = @($serviceMis | ForEach-Object { (Invoke-Az identity show --ids $_.id).principalId } | Where-Object { $_ })
+$servicePrincipalIds = @($serviceMis | ForEach-Object { $mi = Invoke-Az identity show --ids $_.id; if ($mi) { $mi.principalId } } | Where-Object { $_ })
 
 $policyNames = @()
 if (-not $KeepPolicyAssignments) {
@@ -116,11 +125,11 @@ $deleting = @()
 foreach ($rg in @($rgApps, $rgData)) {
     if (-not $existing[$rg]) { continue }
     Write-MeridianStep "delete $rg"
-    & az group delete --name $rg --yes --no-wait --only-show-errors
+    & az group delete --name $rg --subscription $sub --yes --no-wait --only-show-errors
     if ($LASTEXITCODE -eq 0) { $deleting += $rg } else { Write-MeridianWarn "delete of $rg did not start" }
 }
 foreach ($rg in $deleting) {
-    & az group wait --name $rg --deleted --timeout ($TimeoutMinutes * 60) --only-show-errors
+    & az group wait --name $rg --subscription $sub --deleted --timeout ($TimeoutMinutes * 60) --only-show-errors
     if ($LASTEXITCODE -eq 0) { Write-MeridianOk "$rg deleted" } else { Write-MeridianWarn "$rg is still deleting after $TimeoutMinutes minutes; check the portal" }
 }
 
@@ -132,9 +141,13 @@ if ($existing[$rgPlatform]) {
     # the workspace it logs to). Rather than encode every dependency, delete in passes until nothing is left.
     $deadline = (Get-Date).AddMinutes($TimeoutMinutes)
     $pass = 0
+    $reasons = @{}
     do {
         $pass++
-        $remaining = @(Invoke-Az resource list -g $rgPlatform) | Where-Object { $keepIds -notcontains $_.id -and $_.type -ne $lawType }
+        # Wrap the whole filtered pipeline, not just Invoke-Az's output: a zero-object pipeline result
+        # assigns $null (not an empty array) to $remaining, and $remaining.Count throws under StrictMode
+        # -- the very check this loop's exit condition depends on.
+        $remaining = @(@(Invoke-Az resource list -g $rgPlatform) | Where-Object { $keepIds -notcontains $_.id -and $_.type -ne $lawType })
         if ($remaining.Count -eq 0) { break }
         Write-MeridianInfo "pass $pass`: $($remaining.Count) resources"
         # Order within a pass: monitoring rules first, then compute, then everything else.
@@ -144,29 +157,35 @@ if ($existing[$rgPlatform]) {
                 'Microsoft.App/containerApps' { 3 } 'Microsoft.App/managedEnvironments' { 4 } 'Microsoft.Insights/components' { 5 }
                 default { 6 } } }
         foreach ($r in $ordered) {
-            $null = & az resource delete --ids $r.id --only-show-errors 2>&1
-            if ($LASTEXITCODE -eq 0) { Write-MeridianOk "deleted $($r.type) $($r.name)" } else { Write-MeridianInfo "retry later: $($r.type) $($r.name)" }
+            $out = & az resource delete --ids $r.id --subscription $sub --only-show-errors 2>&1
+            if ($LASTEXITCODE -eq 0) { Write-MeridianOk "deleted $($r.type) $($r.name)"; $reasons.Remove($r.id) }
+            else { $reasons[$r.id] = ($out | ForEach-Object { $_.ToString() }) -join ' '; Write-MeridianInfo "retry later: $($r.type) $($r.name)" }
         }
     } while ((Get-Date) -lt $deadline -and $pass -lt 8)
-    $left = @(Invoke-Az resource list -g $rgPlatform) | Where-Object { $keepIds -notcontains $_.id -and $_.type -ne $lawType }
-    if ($left.Count) { Write-MeridianWarn "$($left.Count) resources could not be deleted: $(($left | ForEach-Object { $_.name }) -join ', ')" }
+    $left = @(@(Invoke-Az resource list -g $rgPlatform) | Where-Object { $keepIds -notcontains $_.id -and $_.type -ne $lawType })
+    if ($left.Count) {
+        $details = $left | ForEach-Object { "$($_.name)$(if ($reasons.ContainsKey($_.id) -and $reasons[$_.id]) { " ($($reasons[$_.id]))" })" }
+        Write-MeridianWarn "$($left.Count) resources could not be deleted: $($details -join '; ')"
+    }
 
     foreach ($law in @(Invoke-Az resource list -g $rgPlatform --resource-type $lawType)) {
         # --force skips the 14-day soft-delete so a redeploy creates a fresh workspace instead of recovering old data.
-        $null = & az monitor log-analytics workspace delete --resource-group $rgPlatform --workspace-name $law.name --force true --yes --only-show-errors 2>&1
-        if ($LASTEXITCODE -eq 0) { Write-MeridianOk "deleted workspace $($law.name) permanently" } else { Write-MeridianWarn "workspace $($law.name) delete failed" }
+        $out = & az monitor log-analytics workspace delete --resource-group $rgPlatform --workspace-name $law.name --subscription $sub --force true --yes --only-show-errors 2>&1
+        if ($LASTEXITCODE -eq 0) { Write-MeridianOk "deleted workspace $($law.name) permanently" }
+        else { Write-MeridianWarn "workspace $($law.name) delete failed: $(($out | ForEach-Object { $_.ToString() }) -join ' ')" }
     }
 
     # Role assignments for principals that no longer exist show as "Identity not found" forever; remove the ones we created.
     if ($servicePrincipalIds.Count) {
         $scopes = @()
         if ($keyVault) { $scopes += $keyVault.id }
-        $acr = Invoke-Az acr show --name $registry --resource-group $sharedRg
+        $acr = Invoke-Az acr show --name $registry --resource-group $sharedRg -Subscription $sharedSub
         if ($acr) { $scopes += $acr.id }
         foreach ($scope in $scopes) {
             foreach ($ra in @(Invoke-Az role assignment list --scope $scope) | Where-Object { $servicePrincipalIds -contains $_.principalId }) {
-                $null = & az role assignment delete --ids $ra.id --only-show-errors 2>&1
+                $out = & az role assignment delete --ids $ra.id --only-show-errors 2>&1
                 if ($LASTEXITCODE -eq 0) { Write-MeridianOk "removed $($ra.roleDefinitionName) for deleted identity on $($scope.Split('/')[-1])" }
+                else { Write-MeridianWarn "role assignment $($ra.id) delete failed: $(($out | ForEach-Object { $_.ToString() }) -join ' ')" }
             }
         }
     }
@@ -174,8 +193,9 @@ if ($existing[$rgPlatform]) {
 
 # ---------------------------------------------------------------- 3. policy assignments
 foreach ($name in $policyNames) {
-    $null = & az policy assignment delete --name $name --scope "/subscriptions/$sub" --only-show-errors 2>&1
-    if ($LASTEXITCODE -eq 0) { Write-MeridianOk "deleted policy assignment $name" } else { Write-MeridianWarn "policy assignment $name not deleted" }
+    $out = & az policy assignment delete --name $name --scope "/subscriptions/$sub" --only-show-errors 2>&1
+    if ($LASTEXITCODE -eq 0) { Write-MeridianOk "deleted policy assignment $name" }
+    else { Write-MeridianWarn "policy assignment $name not deleted: $(($out | ForEach-Object { $_.ToString() }) -join ' ')" }
 }
 
 Write-Host ''

@@ -113,6 +113,18 @@ pwsh ./tooling/Approve-PendingApprovals.ps1 -Wait       # approve each pause as 
 pwsh ./tooling/Grant-FeedRole.ps1 -ReadOnly             # current feed role of the build service
 ```
 
+## Self-hosted agent pool (optional)
+
+`platform-infrastructure` always deploys `shared`'s Container Apps environment, Key Vault and
+agent identity; the two Container Apps jobs that run pool `meridian-agents` stay off until the
+owner turns them on, in order: merge -> a `shared` infra run creates the vault -> owner stores
+the PAT in it -> flip `agentPoolEnabled` -> a `shared` infra run creates the jobs ->
+`pwsh tooling/Initialize-AgentPool.ps1 -EnsurePool -AuthorizeAllPipelines -RegisterPlaceholder`
+-> templates v1.1.0 repoints consumers at the pool (not done yet). See
+[`tooling/README.md`](tooling/README.md) and
+[`platform-infrastructure/README.md`](platform-infrastructure/README.md) for the flags,
+parameters and outputs.
+
 ## Working with agents
 
 [`CLAUDE.md`](CLAUDE.md) is the working agreement for Claude Code sessions in this repository:

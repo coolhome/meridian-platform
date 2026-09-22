@@ -122,6 +122,13 @@ $script:InvokeRoutes = @(
     @{ Pattern = 'distributedtask/variablegroups/{groupId}';                  Area = 'distributedtask';     Resource = 'variablegroups' }
     @{ Pattern = 'distributedtask/tasks';                                     Area = 'distributedtask';     Resource = 'tasks' }
     @{ Pattern = 'distributedtask/resourceusage';                             Area = 'distributedtask';     Resource = 'resourceusage' }
+    # Agent pools (Initialize-AgentPool.ps1). Area/resource follow the same rule every other
+    # distributedtask entry above does (last real path segment is the resource name, route params
+    # ignored); not exercised against this organization without AZDO_PAT, so treat as best-effort in
+    # credential-manager mode until an operator without a PAT confirms them.
+    @{ Pattern = 'distributedtask/pools';                                     Area = 'distributedtask';     Resource = 'pools' }
+    @{ Pattern = 'distributedtask/pools/{poolId}/agents';                     Area = 'distributedtask';     Resource = 'agents' }
+    @{ Pattern = 'distributedtask/queues';                                    Area = 'distributedtask';     Resource = 'queues' }
     @{ Pattern = 'identities';                                                Area = 'IMS';                 Resource = 'Identities' }
     @{ Pattern = 'policy/types';                                              Area = 'policy';              Resource = 'types' }
     @{ Pattern = 'policy/configurations';                                     Area = 'policy';              Resource = 'configurations' }
