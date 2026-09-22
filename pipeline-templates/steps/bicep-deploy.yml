@@ -71,6 +71,12 @@ steps:
     LOCATION: ${{ parameters.location }}
     DEPLOYMENT_NAME: ${{ parameters.deploymentName }}
     MODE: ${{ parameters.mode }}
+    # Every consumer's .bicepparam derives globally unique names from
+    # readEnvironmentVariable('MERIDIAN_UNIQUE_SUFFIX', '<env>001'). The value comes from the
+    # environment's variable group (variables/environment.yml). Without this line the fallback is
+    # used silently and the deployment targets a resource that does not exist (run 3922 looked for
+    # storage account stmrddevdev001; the real one is stmrddevch2609).
+    MERIDIAN_UNIQUE_SUFFIX: $(UniqueSuffix)
 - ${{ if eq(parameters.mode, 'whatIf') }}:
   - task: PublishPipelineArtifact@1
     displayName: Publish what-if
