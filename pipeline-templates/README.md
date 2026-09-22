@@ -35,6 +35,9 @@ Object keys the templates read: `dotnet.sdkVersion`, `dotnet.projects`, `dotnet.
   a time, Linux, no Docker daemon; ADR 0008). `platform` needs an agent already registered in
   the pool (the placeholder ADR 0008 describes) or queued jobs never start. Rollback: set
   `agentPool: hosted` on the consumer, no template change required.
+* `node-spa` deploys the built `drop` artifact with the SWA CLI (`npx @azure/static-web-apps-cli
+  deploy`), not `AzureStaticWebApp@0`, because that task runs Docker internally and cannot run on
+  the `meridian-agents` pool.
 
 ## Stages
 
@@ -48,7 +51,7 @@ consumer lists). Package, Deploy, Publish, Promote and Release stages are skippe
 | `service.yml` | `Build` and `Scan` in parallel -> `Package` (dotnet kinds only; depends on both) -> `Deploy_<env>` per environment (depends on Build, Scan, Package where it exists, and the previous environment's deploy) -> `Release` (tags the repo; only when `prod` is listed) |
 | `infrastructure.yml` | `Validate` -> per environment `WhatIf_<env>` (depends on Validate and on the previous environment's `Deploy_<env>`, in the order shared -> dev -> test -> prod) -> `Deploy_<env>` |
 | `library.yml` | `Build` (build, then pack) and `Scan` in parallel -> `Publish` (deployment job on the `packages` environment; `dotnet nuget push --skip-duplicate` to the project-scoped feed, so a redeploy of an already-published version does not fail the stage) -> `Deploy_<env>` per environment when `infra.templatePath` is set (depends on Publish and the previous environment's deploy) -> `Release` (when `prod` is listed) |
-| `container-images.yml` | `Validate` (hadolint from a pinned, checksummed binary, plus scan) -> `Build` (one job per image; each publishes its own SARIF artifact `CodeAnalysisLogs-image-base-<name>`) -> `Promote` (deployment job on `shared`; imports and moves the channel tag only when the build's digest differs from the channel tag's current digest, so an unchanged base image is not re-imported and does not re-fire the four services' container triggers) |
+| `container-images.yml` | `Validate` (hadolint from a pinned, checksummed binary, plus scan) -> `Build` (one job per image; each publishes its own SARIF artifact `CodeAnalysisLogs-image-base-<name>`) -> `Promote` (deployment job on `shared`; imports and moves the channel tag; a fresh build always gets a new digest and moves the tag, re-firing the four services by design; the re-import is skipped only when Promote re-runs for a build already promoted under this tag, a stage retry or a redeploy of the same run) |
 
 ## Versioning
 

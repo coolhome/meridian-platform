@@ -35,4 +35,6 @@ In Azure Pipelines `NpmAuthenticate@0` injects the feed credentials before `npm 
 
 `azure-pipelines.yml` extends `service.yml@templates` with `kind: node-spa`. The deploy
 stage runs `infra/main.bicep` (Static Web App), reads the deployment token from the resource at
-deploy time (no stored secret) and uploads `dist/` with `AzureStaticWebApp@0`.
+deploy time (no stored secret) and uploads the built `drop` artifact (`dist/`) with the SWA CLI
+(`npx @azure/static-web-apps-cli deploy`), not `AzureStaticWebApp@0`: that task runs Docker
+internally, which the self-hosted `meridian-agents` pool cannot do.
