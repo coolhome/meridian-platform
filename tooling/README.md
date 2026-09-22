@@ -20,7 +20,7 @@ on first use) and git 2.30+ with `subtree`.
 | `Grant-FeedRole.ps1` | Inspect (`-ReadOnly`) or re-apply the Artifacts feed role for the build service outside the bootstrap |
 | `Approve-PendingApprovals.ps1` | Approve pending pipeline approvals from a terminal (`-ListOnly`, `-Wait`) |
 | `Remove-AzureEnvironment.ps1` | Tear down one environment's Azure resources (`-WhatIf`, `-Force`); keeps the Key Vault and the pipeline identity; never `shared` |
-| `Start-EnvironmentDeploy.ps1` | Queue the governed pipelines in dependency order and wait (`-ApproveShared`, `-IncludeShared`, `-Only`) |
+| `Start-EnvironmentDeploy.ps1` | Queue the governed pipelines in dependency order and wait (`-ApproveShared`, `-IncludeShared`, `-Only`); recognises the service runs the libraries Publish stage fired by their `triggerInfo` |
 | `lib/Meridian.Ado.psm1` | Shared REST/CLI helpers |
 
 ## What this automation does not do
@@ -63,7 +63,12 @@ refused.
 `Start-EnvironmentDeploy.ps1` is `az pipelines run` in dependency order: infrastructure,
 (base images with `-IncludeShared`), libraries, the service pipelines (the .NET ones fire from
 their pipeline resource trigger on libraries; whatever has not fired within four minutes is
-queued), then observability. With `-ApproveShared` it runs `Approve-PendingApprovals.ps1 -Wait`
+queued), then observability. The fired runs are recognised by `triggerInfo`
+(`pipelineTriggerType = PipelineCompletion`, `pipelineId` = the libraries run id), not by
+`reason`: the Build REST API reports a resource-triggered run as `manual`, requested by
+`Microsoft.VisualStudio.Services.TFS`. The run list is read with `--query-order QueueTimeDesc`
+because the default order (finish time) puts an unfinished run behind the completed ones and
+outside `--top 10`. With `-ApproveShared` it runs `Approve-PendingApprovals.ps1 -Wait`
 alongside. Nothing bypasses a check: the environments a pipeline deploys are declared in that
 consumer's `azure-pipelines.yml`.
 

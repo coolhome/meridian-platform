@@ -18,6 +18,13 @@
                                            within a few minutes, such as app-frontend, are queued here)
       5. observability-cicd                (alerts target the Container Apps, so it goes last)
 
+    Step 4 recognises the runs the libraries Publish stage fired by their triggerInfo, not by reason: the
+    Build REST API reports a resource-triggered run with reason 'manual' and requestedBy
+    'Microsoft.VisualStudio.Services.TFS', and triggerInfo (pipelineTriggerType PipelineCompletion,
+    pipelineId = the producer run id, source = the producer pipeline name) is what identifies it. They are
+    queued when the Publish stage ends, well before the libraries run itself finishes, so the window they
+    must fall in starts at the libraries run's own queue time.
+
     The shared stage of platform-infrastructure pauses for the Platform Engineering approval. With
     -ApproveShared, Approve-PendingApprovals.ps1 -Wait runs alongside and records your approval from
     the terminal (needs AZDO_PAT); without it, approve in the portal when the run pauses.
@@ -83,6 +90,27 @@ function Wait-Runs([object[]]$Runs) {
         }
     }
 }
+function Get-OptionalProperty([object]$Object, [string]$Name) {
+    # StrictMode-safe read of a property that may be absent (a hand-queued run has no triggerInfo; a CI run's has no
+    # pipelineTriggerType).
+    if ($null -eq $Object) { return $null }
+    $p = $Object.PSObject.Properties[$Name]
+    return $(if ($p) { $p.Value } else { $null })
+}
+function Test-ProducerTriggeredRun([object]$Run, [int]$ProducerRunId, [datetime]$NotBefore) {
+    # The Build REST API reports a run fired by a pipeline resource trigger with reason 'manual' and requestedBy
+    # 'Microsoft.VisualStudio.Services.TFS'; only triggerInfo says which resource fired it:
+    #   PipelineCompletion: alias, artifactType Pipeline, source <producer pipeline>, pipelineId <producer run id>, version <its buildNumber>
+    #   ContainerImage:     alias, artifactType AzureContainerRepository, tag
+    # A CI run's triggerInfo holds ci.sourceBranch, ci.sourceSha and the like, and a hand-queued run has none; neither
+    # carries pipelineTriggerType, hence the guarded reads. The producer run id is the key (run ids are unique in the
+    # organization, so no producer-name fallback); the queue-time window is a sanity check, since nothing the producer
+    # fired can predate the producer's own queue time.
+    $info = Get-OptionalProperty $Run 'triggerInfo'
+    if ((Get-OptionalProperty $info 'pipelineTriggerType') -ne 'PipelineCompletion') { return $false }
+    if ([string](Get-OptionalProperty $info 'pipelineId') -ne [string]$ProducerRunId) { return $false }
+    return ([datetime]$Run.queueTime -gt $NotBefore)
+}
 
 $approver = $null
 if ($ApproveShared) {
@@ -105,28 +133,43 @@ try {
         Wait-Runs @(Start-Run $containersPipeline)
     }
     # 3. libraries
-    $librariesFinished = $null
+    $librariesRunId = 0
+    $librariesQueued = $null
     if (Wanted $librariesPipeline) {
         Write-MeridianStep "3. $librariesPipeline"
-        Wait-Runs @(Start-Run $librariesPipeline)
-        $librariesFinished = Get-Date
+        $librariesRun = Start-Run $librariesPipeline
+        Wait-Runs @($librariesRun)
+        $librariesRunId = [int]$librariesRun.id
+        $librariesQueued = [datetime]$librariesRun.queueTime
         if (($results | Where-Object { $_.pipeline -eq $librariesPipeline }).result -ne 'succeeded') { throw "$librariesPipeline did not succeed; the services cannot restore, stopping" }
     }
-    # 4. services: wait for the resource-triggered runs, queue whichever did not fire
+    # 4. services: wait for the runs the libraries resource trigger fired (matched by triggerInfo, see
+    #    Test-ProducerTriggeredRun: their REST reason is 'manual'), queue whichever did not fire. The window
+    #    starts at the libraries run's queue time, not its finish: a stage-completion trigger fires when the
+    #    Publish stage ends, which on run 3964 was 24 minutes before the run itself finished, so a window
+    #    anchored on the finish would veto every run it fired. The list is ordered by queue time on purpose:
+    #    the default order is by finish time, which puts a run that has not finished yet (every run this step
+    #    is looking for) after the completed ones and outside --top; 10 leaves room for the container-image
+    #    trigger's runs, which can land in front of the libraries-fired one.
     $wantedServices = @($servicePipelines | Where-Object { Wanted $_ })
     if ($wantedServices.Count) {
         Write-MeridianStep "4. services: $($wantedServices -join ', ')"
         $runs = @{}
-        if ($librariesFinished) {
+        if ($librariesQueued) {
             $until = (Get-Date).AddMinutes(4)
             while ((Get-Date) -lt $until -and $runs.Count -lt $wantedServices.Count) {
                 Start-Sleep -Seconds 20
                 foreach ($name in $wantedServices | Where-Object { -not $runs.ContainsKey($_) }) {
                     $def = Get-AdoPipelineDefinition -Name $name
                     if (-not $def) { continue }
-                    $recent = @(Invoke-AzCli pipelines runs list --pipeline-ids $def.id --top 3) |
-                        Where-Object { $_.reason -eq 'resourceTrigger' -and [datetime]$_.queueTime -gt $librariesFinished.AddMinutes(-2) } | Select-Object -First 1
-                    if ($recent) { $runs[$name] = $recent; Write-MeridianOk "$name run $($recent.id) fired from the $librariesPipeline resource trigger" }
+                    $recent = @(Invoke-AzCli pipelines runs list --pipeline-ids $def.id --top 10 --query-order QueueTimeDesc) |
+                        Where-Object { Test-ProducerTriggeredRun -Run $_ -ProducerRunId $librariesRunId -NotBefore $librariesQueued } |
+                        Select-Object -First 1
+                    if ($recent) {
+                        $runs[$name] = $recent
+                        $ti = $recent.triggerInfo
+                        Write-MeridianOk "$name run $($recent.id) fired by the $($ti.pipelineTriggerType) trigger: $librariesPipeline run $(Get-OptionalProperty $ti 'pipelineId') ($(Get-OptionalProperty $ti 'version'))"
+                    }
                 }
             }
         }
