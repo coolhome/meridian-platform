@@ -111,3 +111,7 @@ owner's call, not an agent's.
 * A project-scoped feed is addressed as `<Project>/<feed>` in `publishVstsFeed`.
 * Git Bash rewrites `/subscriptions/...` arguments into Windows paths; run those through `pwsh`.
 * One file per heredoc in a Bash call; a multi-file heredoc fails to parse and writes nothing.
+* A permission-classifier refusal is a decision, not noise: do not retry the same command; do
+  the rest of the task, report the exact command refused, and let the orchestrator raise it.
+  The classifier refuses ad-hoc permission grants, Azure role assignments, run cancellation,
+  bare `gh pr merge` (the `/merge` skill path works), `rm -rf` and some ref deletions.
