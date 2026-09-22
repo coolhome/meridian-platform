@@ -26,6 +26,12 @@ parameters:
 - name: deploy
   type: boolean
   default: true
+- name: agentPool
+  type: string
+  default: hosted
+  values:
+  - hosted
+  - platform
 
 stages:
 - stage: Build
@@ -38,10 +44,15 @@ stages:
       dotnet: ${{ parameters.dotnet }}
       preBuildSteps: ${{ parameters.preBuildSteps }}
       publishArtifact: false
+      agentPool: ${{ parameters.agentPool }}
   - job: Pack
     dependsOn: Build
-    pool:
-      vmImage: $(Meridian.VmImage)
+    ${{ if eq(parameters.agentPool, 'platform') }}:
+      pool:
+        name: meridian-agents
+    ${{ if ne(parameters.agentPool, 'platform') }}:
+      pool:
+        vmImage: $(Meridian.VmImage)
     steps:
     - template: ../../steps/checkout.yml
       parameters:
@@ -74,6 +85,8 @@ stages:
   - template: ../../variables/common.yml
   jobs:
   - template: ../../jobs/security-scan.yml
+    parameters:
+      agentPool: ${{ parameters.agentPool }}
 
 - ${{ if eq(parameters.deploy, true) }}:
   - stage: Publish
@@ -86,8 +99,12 @@ stages:
     - template: ../../variables/common.yml
     jobs:
     - deployment: Publish
-      pool:
-        vmImage: ubuntu-24.04 # deployment jobs cannot take the image from a stage variable (see jobs/deploy-bicep.yml)
+      ${{ if eq(parameters.agentPool, 'platform') }}:
+        pool:
+          name: meridian-agents
+      ${{ if ne(parameters.agentPool, 'platform') }}:
+        pool:
+          vmImage: ubuntu-24.04 # deployment jobs cannot take the image from a stage variable (see jobs/deploy-bicep.yml)
       environment: packages
       strategy:
         runOnce:
@@ -96,16 +113,31 @@ stages:
             - download: current
               artifact: packages
             - task: NuGetAuthenticate@1
-            - task: DotNetCoreCLI@2
+            - script: |
+                set -euo pipefail
+                # Project-scoped feed: pkgs.dev.azure.com/<org>/<project>/_packaging/<feed>/nuget/v3/index.json
+                # (the DotNetCoreCLI@2 publishVstsFeed id "<project>/<feed>" resolves the same feed; a bare
+                # "<feed>" 404s with TF1600011, run 3815). --skip-duplicate: a teardown/redeploy without a new
+                # commit republishes the same GitVersion number, and a 409 here must not fail the stage and
+                # skip firing the four services (handoff-6 backlog).
+                feed_url="${COLLECTION_URI/dev.azure.com/pkgs.dev.azure.com}${TEAM_PROJECT}/_packaging/${FEED_NAME}/nuget/v3/index.json"
+                echo "feed: $feed_url"
+                shopt -s nullglob
+                pkgs=("$PKG_DIR"/*.nupkg)
+                if [ ${#pkgs[@]} -eq 0 ]; then
+                  echo "##vso[task.logissue type=error]no .nupkg files found in $PKG_DIR"
+                  exit 1
+                fi
+                for pkg in "${pkgs[@]}"; do
+                  echo "--- $(basename "$pkg") ---"
+                  dotnet nuget push "$pkg" --source "$feed_url" --api-key az --skip-duplicate
+                done
               displayName: dotnet nuget push
-              inputs:
-                command: push
-                packagesToPush: $(Pipeline.Workspace)/packages/*.nupkg
-                nuGetFeedType: internal
-                # Project-scoped feed: the id must be "<project>/<feed>". Bare "<feed>" resolves to
-                # the organisation-scoped URL and the push 404s with TF1600011 "feed doesn't exist"
-                # regardless of permissions (run 3815).
-                publishVstsFeed: $(System.TeamProject)/${{ parameters.feed }}
+              env:
+                COLLECTION_URI: $(System.CollectionUri)
+                TEAM_PROJECT: $(System.TeamProject)
+                FEED_NAME: ${{ parameters.feed }}
+                PKG_DIR: $(Pipeline.Workspace)/packages
 
   # Every prerequisite is explicit. A stage without dependsOn inherits whichever stage happens to
   # precede it in the file (service.yml documents the run that proved it). Promotion order is chained.
@@ -138,6 +170,7 @@ stages:
             resourceGroup: ${{ replace(coalesce(parameters.infra.resourceGroupPattern, 'rg-mrd-{env}-platform'), '{env}', env) }}
             templatePath: ${{ parameters.infra.templatePath }}
             parametersFile: ${{ replace(coalesce(parameters.infra.parametersPattern, 'infra/params/{env}.bicepparam'), '{env}', env) }}
+            agentPool: ${{ parameters.agentPool }}
 
   - ${{ if containsValue(parameters.environments, 'prod') }}:
     - stage: Release
@@ -151,7 +184,11 @@ stages:
       - template: ../../variables/common.yml
       jobs:
       - job: Tag
-        pool:
-          vmImage: $(Meridian.VmImage)
+        ${{ if eq(parameters.agentPool, 'platform') }}:
+          pool:
+            name: meridian-agents
+        ${{ if ne(parameters.agentPool, 'platform') }}:
+          pool:
+            vmImage: $(Meridian.VmImage)
         steps:
         - template: ../../steps/tag-release.yml

@@ -8,12 +8,22 @@ parameters:
 - name: publishArtifact
   type: boolean
   default: true
+- name: agentPool
+  type: string
+  default: hosted
+  values:
+  - hosted
+  - platform
 
 jobs:
 - job: Build
   displayName: Build, test, SBOM (.NET)
-  pool:
-    vmImage: $(Meridian.VmImage)
+  ${{ if eq(parameters.agentPool, 'platform') }}:
+    pool:
+      name: meridian-agents
+  ${{ if ne(parameters.agentPool, 'platform') }}:
+    pool:
+      vmImage: $(Meridian.VmImage)
   steps:
   - template: ../steps/checkout.yml
   - template: ../steps/gitversion.yml
