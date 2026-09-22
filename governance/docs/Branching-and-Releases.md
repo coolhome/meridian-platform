@@ -25,4 +25,8 @@ feed; consumers bump explicitly.
 
 `meridian-pipeline-templates` tags `vMAJOR.MINOR.PATCH`. Consumers pin `ref: refs/tags/...`.
 Breaking parameter changes bump MAJOR. Rollout is opt-in per consumer; the templates CI compiles
-every consumer against the candidate before the tag is cut.
+every consumer against the candidate before the tag is cut. A release moves `templatesRef`,
+`allowedTemplateRefs` and every consumer's `ref:` in one change: the sync workflow creates the
+tag from `allowedTemplateRefs` at the mirrored `main` commit, the bootstrap lists the allowed
+refs in the required-template checks, and `tooling/Test-RepoBoundaries.ps1` fails a consumer
+pin that differs from `templatesRef`.

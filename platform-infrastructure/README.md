@@ -24,7 +24,11 @@ these resources with `existing`.
 
 `azure-pipelines.yml` extends `pipelines/extends/infrastructure.yml@templates`:
 Validate (bicep build + lint + PSRule + Trivy IaC) -> per environment: What-if (plain job,
-artifact for approvers) -> Deploy (`deployment` job gated by environment checks).
+artifact for approvers) -> Deploy (`deployment` job gated by environment checks). Environments
+run in the order shared -> dev -> test -> prod; each What-if depends on Validate and on the
+previous environment's Deploy, so a failed `shared` deploy stops `dev`. Every stage, `shared`
+included, passes `uniqueSuffix=$(UniqueSuffix)`, which the bootstrap writes into the
+`meridian-shared` variable group next to the per-environment groups.
 
 ## First-time prerequisites
 

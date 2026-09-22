@@ -24,8 +24,11 @@ $name = "id-$Prefix-$Environment-pipelines"
 az group create --name $rg --location $Location --tags "meridian:environment=$Environment" 'meridian:owner=platform-engineering' --output none
 $mi = az identity create --resource-group $rg --name $name --location $Location --output json | ConvertFrom-Json
 
-# Contributor to deploy, RBAC Administrator to create the data-plane role assignments in main.bicep.
-foreach ($role in @('Contributor', 'Role Based Access Control Administrator')) {
+# Contributor to deploy, RBAC Administrator to create the data-plane role assignments in main.bicep,
+# Resource Policy Contributor for the subscription-scope policy assignments in modules/policy-assignments.bicep
+# (Contributor's NotActions exclude Microsoft.Authorization/*/write, so without it even the what-if fails with
+# "Authorization failed for template resource ... policyAssignments"; run 3921).
+foreach ($role in @('Contributor', 'Role Based Access Control Administrator', 'Resource Policy Contributor')) {
     az role assignment create --assignee-object-id $mi.principalId --assignee-principal-type ServicePrincipal --role $role --scope "/subscriptions/$SubscriptionId" --output none
 }
 $tenant = az account show --query tenantId -o tsv

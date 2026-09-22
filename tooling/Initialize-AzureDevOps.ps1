@@ -31,7 +31,7 @@ $pipelineSettings = Get-MeridianGovernanceFile -Manifest $m -Key projectPipeline
 $placeholder = '00000000-0000-0000-0000-000000000000'
 
 # Steps the bootstrap could not complete itself. Collected here and reprinted at the end, because
-# a warning 400 lines up is a warning nobody reads. See "Steps automation cannot perform" in README.md.
+# a warning 400 lines up is a warning nobody reads. See "The one step automation does not perform" in README.md.
 $manualSteps = [System.Collections.Generic.List[string]]::new()
 function Add-ManualStep { param([string]$Message) $manualSteps.Add($Message); Write-MeridianWarn $Message }
 
@@ -396,6 +396,6 @@ if ($manualSteps.Count -gt 0) {
     Write-Host " The platform is not fully provisioned until a human completes them." -ForegroundColor Yellow
     Write-Host "$('=' * 78)" -ForegroundColor Yellow
     for ($i = 0; $i -lt $manualSteps.Count; $i++) { Write-Host " $($i + 1). $($manualSteps[$i])" -ForegroundColor Yellow }
-    Write-Host " See 'Steps automation cannot perform' in README.md.`n" -ForegroundColor Yellow
+    Write-Host " See 'The one step automation does not perform' in README.md.`n" -ForegroundColor Yellow
 }
 Write-Host "`nBootstrap complete. Next: pwsh tooling/Publish-Platform.ps1" -ForegroundColor Green
