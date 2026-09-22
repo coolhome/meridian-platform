@@ -1,6 +1,6 @@
 # ADR 0002: `extends` templates are the deployment control plane
 
-**Status:** Accepted, 2026-09-19
+**Status:** Accepted, 2026-09-19. Note 2026-09-22: "opt-in per consumer" describes the mechanism (each consumer carries its own explicit pin; nothing moves a consumer without a change to its file), not staggered adoption. `tooling/Test-RepoBoundaries.ps1` check 6 fails a pin that differs from the manifest `templatesRef`, so in practice every consumer moves in the same release PR; with one team that is the intended cadence. Staggered adoption would need that check to accept any ref in `allowedTemplateRefs`, which is a deliberate change, not a bug.
 
 ## Context
 
