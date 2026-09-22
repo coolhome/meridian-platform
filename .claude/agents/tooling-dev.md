@@ -40,7 +40,9 @@ working agreement; this file adds your specifics.
 ## How you verify
 
 * Parse every touched script:
-  `pwsh -c "[System.Management.Automation.Language.Parser]::ParseFile('<file>', [ref]$null, [ref]$e); $e"`.
+  `pwsh -c '$e = $null; [System.Management.Automation.Language.Parser]::ParseFile("<file>", [ref]$null, [ref]$e) | Out-Null; $e'`
+  (single-quote the outer string so the calling shell does not expand `$e`, and initialise `$e`
+  first: under `-c`, `[ref]$e` on an undefined variable is itself an error).
 * Run read-only paths for real (`-ReadOnly`, `-WhatIf`, `-DryRun`, `-ListOnly`) against the
   live organization; they need `AZDO_PAT` and an `az login`.
 * `npx --yes --package js-yaml js-yaml <workflow>` for workflow YAML.
