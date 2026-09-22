@@ -9,9 +9,11 @@ Governed base images and the ACR Task that keeps them fresh.
 | `base/build-tools:10.0` | `mcr.microsoft.com/dotnet/sdk:10.0-noble` + Node 24 + PowerShell | container jobs in pipelines |
 
 `image-manifest.json` lists them; `azure-pipelines.yml` passes it to the
-`container-images.yml` template, which builds with `az acr build`, scans with Trivy,
-and promotes the channel tag (`10.0`) from a `deployment` job bound to the `shared`
-environment (approval by Platform Engineering).
+`container-images.yml` template, which builds with `az acr build`, lints each Dockerfile with a
+pinned, checksummed hadolint binary (no `docker run`, so the stage can run on the self-hosted
+`meridian-agents` pool too), scans with Trivy, and promotes the channel tag (`10.0`) from a
+`deployment` job bound to the `shared` environment (approval by Platform Engineering) only when
+the build's digest differs from what the channel tag currently points at.
 
 ## What runs the pipeline
 
@@ -21,7 +23,8 @@ base images, because re-promoting the `10.0` channel tag fires every .NET servic
 its `baseImage` container resource (the 2026-09-22 pin-bump waves did exactly that). The Sunday
 03:00 UTC schedule (`always: true`) still rebuilds weekly. A template change to
 `container-images.yml` is exercised by that schedule or by ops queueing the pipeline, accepting on
-purpose that Promote re-tags the channel and re-fires the four .NET services:
+purpose that a changed image moves the channel tag and re-fires the four .NET services; Promote
+compares digests first, so an unchanged image is not re-imported and nothing re-fires (v1.1.0):
 
 ```bash
 pwsh tooling/Start-EnvironmentDeploy.ps1 -Environment dev -IncludeShared -Only containers-base-images

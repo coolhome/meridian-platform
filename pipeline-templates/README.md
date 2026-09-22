@@ -6,10 +6,10 @@ exactly these paths, so nothing else can deploy.
 
 | Template | For | Consumer passes |
 | --- | --- | --- |
-| `pipelines/extends/service.yml` | dotnet-api, dotnet-worker, node-spa | `serviceName`, `kind`, `environments` (default dev, test, prod), optional `dotnet`/`node`/`container`/`infra` objects, optional `preBuildSteps` (allow-listed tasks only), `smokePath` (default `/health/ready`, empty disables the smoke test), `prodStrategy` (`canary` default, or `runOnce`), `deploy` (default true) |
-| `pipelines/extends/infrastructure.yml` | Bicep at subscription or resource-group scope | `name`, `templatePath`, `scope`, `parametersPattern`, `resourceGroupPattern`, `additionalParameters`, `environments` (default shared, dev, test, prod), `psRuleBaseline`, `deploy` |
-| `pipelines/extends/library.yml` | NuGet packages plus optional per-environment infra | `name`, `packProjects`, `feed` (bare feed name, default `meridian`; the template pushes to the project-scoped id `$(System.TeamProject)/<feed>`), optional `dotnet`/`infra` objects, `environments`, `preBuildSteps`, `deploy` |
-| `pipelines/extends/container-images.yml` | Base images built with ACR Tasks | `images[]` (`name`, `context`, `channel`), `deploy` |
+| `pipelines/extends/service.yml` | dotnet-api, dotnet-worker, node-spa | `serviceName`, `kind`, `agentPool` (`hosted` default, `platform` opt-in; see below), `environments` (default dev, test, prod), optional `dotnet`/`node`/`container`/`infra` objects, optional `preBuildSteps` (allow-listed tasks only), `smokePath` (default `/health/ready`, empty disables the smoke test), `prodStrategy` (`canary` default, or `runOnce`), `deploy` (default true) |
+| `pipelines/extends/infrastructure.yml` | Bicep at subscription or resource-group scope | `name`, `templatePath`, `scope`, `parametersPattern`, `resourceGroupPattern`, `additionalParameters`, `agentPool` (`hosted` default, `platform` opt-in; see below), `environments` (default shared, dev, test, prod), `psRuleBaseline`, `deploy` |
+| `pipelines/extends/library.yml` | NuGet packages plus optional per-environment infra | `name`, `packProjects`, `feed` (bare feed name, default `meridian`; the template builds the project-scoped feed URL `.../<project>/_packaging/<feed>/nuget/v3/index.json` and pushes with `dotnet nuget push --skip-duplicate`), `agentPool` (`hosted` default, `platform` opt-in; see below), optional `dotnet`/`infra` objects, `environments`, `preBuildSteps`, `deploy` |
+| `pipelines/extends/container-images.yml` | Base images built with ACR Tasks | `images[]` (`name`, `context`, `channel`), `agentPool` (`hosted` default, `platform` opt-in; see below), `deploy` |
 
 Object keys the templates read: `dotnet.sdkVersion`, `dotnet.projects`, `dotnet.testProjects`,
 `dotnet.publishProject`, `dotnet.lockedMode`; `node.version`, `node.workingDirectory`,
@@ -29,7 +29,12 @@ Object keys the templates read: `dotnet.sdkVersion`, `dotnet.projects`, `dotnet.
 * Every build produces test results, coverage, a CycloneDX SBOM and Gitleaks + Trivy SARIF.
 * Images are built by `az acr build` into the shared registry and scanned before deploy.
 * Prod service deploys use the canary strategy with 10 and 50 percent waves.
-* Agents are pinned to `ubuntu-24.04`.
+* `agentPool` (`hosted` default, `platform` opt-in) picks the pool at compile time for every
+  stage that declares `pool:`: `hosted` pins `ubuntu-24.04`, `platform` emits `pool: name:
+  meridian-agents`, the self-hosted Container Apps jobs pool in the `shared` tier (one agent at
+  a time, Linux, no Docker daemon; ADR 0008). `platform` needs an agent already registered in
+  the pool (the placeholder ADR 0008 describes) or queued jobs never start. Rollback: set
+  `agentPool: hosted` on the consumer, no template change required.
 
 ## Stages
 
@@ -42,8 +47,8 @@ consumer lists). Package, Deploy, Publish, Promote and Release stages are skippe
 | --- | --- |
 | `service.yml` | `Build` and `Scan` in parallel -> `Package` (dotnet kinds only; depends on both) -> `Deploy_<env>` per environment (depends on Build, Scan, Package where it exists, and the previous environment's deploy) -> `Release` (tags the repo; only when `prod` is listed) |
 | `infrastructure.yml` | `Validate` -> per environment `WhatIf_<env>` (depends on Validate and on the previous environment's `Deploy_<env>`, in the order shared -> dev -> test -> prod) -> `Deploy_<env>` |
-| `library.yml` | `Build` (build, then pack) and `Scan` in parallel -> `Publish` (deployment job on the `packages` environment; pushes to the project-scoped feed) -> `Deploy_<env>` per environment when `infra.templatePath` is set (depends on Publish and the previous environment's deploy) -> `Release` (when `prod` is listed) |
-| `container-images.yml` | `Validate` (hadolint plus scan) -> `Build` (one job per image; each publishes its own SARIF artifact `CodeAnalysisLogs-image-base-<name>`) -> `Promote` (deployment job on `shared`; moves the channel tag) |
+| `library.yml` | `Build` (build, then pack) and `Scan` in parallel -> `Publish` (deployment job on the `packages` environment; `dotnet nuget push --skip-duplicate` to the project-scoped feed, so a redeploy of an already-published version does not fail the stage) -> `Deploy_<env>` per environment when `infra.templatePath` is set (depends on Publish and the previous environment's deploy) -> `Release` (when `prod` is listed) |
+| `container-images.yml` | `Validate` (hadolint from a pinned, checksummed binary, plus scan) -> `Build` (one job per image; each publishes its own SARIF artifact `CodeAnalysisLogs-image-base-<name>`) -> `Promote` (deployment job on `shared`; imports and moves the channel tag only when the build's digest differs from the channel tag's current digest, so an unchanged base image is not re-imported and does not re-fire the four services' container triggers) |
 
 ## Versioning
 
