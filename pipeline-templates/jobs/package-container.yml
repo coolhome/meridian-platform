@@ -23,7 +23,8 @@ jobs:
       set -euo pipefail
       rm -rf .publish && mkdir -p .publish
       cp -R "$(Pipeline.Workspace)/drop/." .publish/
-      ls -la .publish | head -20
+      # No early-exit pipe here: under pipefail, `ls | head` ends with SIGPIPE (exit 141) and fails the job (runs 3958 to 3961).
+      echo "staged $(find .publish -type f | wc -l) files, $(du -sh .publish | cut -f1)"
     displayName: Stage publish output into build context
   - template: ../steps/container-build-push.yml
     parameters:
