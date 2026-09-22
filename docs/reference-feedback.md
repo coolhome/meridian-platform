@@ -523,3 +523,77 @@ first suspect when a write returns an empty result.
 **Manual steps, revised.** The platform has one: the `shared` environment approval, which is
 manual by design. The root `README.md`, `tooling/README.md` and the bootstrap's closing banner
 now say so.
+
+---
+
+## Context 5 addendum 3: resource triggers in practice (2026-09-22, the v1.0.9 wave)
+
+Pages used, from `llms.txt` (Knowledge updated 2026-09-22T02:48:57Z): Domain Knowledge Index ->
+Trigger Semantics; Pipeline Resources (the Resource Triggers table, the Trigger identity cheat
+sheet, "Default version and branch selection for completion triggers", Pitfalls); Predefined
+Variables section 5; Golden Path "First run of a governed pipeline". The finding they served is
+in `handoff-6.md`, "Every service runs three times per wave": each of the four services was
+queued three times per wave (its own CI on the pin bump, the libraries Publish completion, the
+base-image re-import), about 40 hosted minutes per set of four at parallelism 1.
+
+**Helpful**
+
+* The routing table took us from `llms.txt` to Trigger Semantics and Pipeline Resources in one
+  hop.
+* The pitfall "CI + completion triggers double-run: disable one of the two triggers" is exactly
+  our triple run and drove the fix: the producers' CI path filters now exclude their own
+  `azure-pipelines.yml` (and `pipelines/*` for libraries), so a pin bump no longer re-publishes,
+  and the consumers keep their resource triggers.
+* "Container trigger evaluation occurs only on the pipeline's default branch" and "triggers live
+  in the entry YAML only, no variables" confirmed the fix is consumer YAML only: no template
+  tag, no `allowedTemplateRefs` change, no check update.
+* "CI trigger reads the pushed branch's copy" told us the push that carries the fix will not
+  itself fire the producers, so the fix costs no wave.
+
+**Tripped us up**
+
+* The Resource Triggers table and the Trigger identity cheat sheet say a resource-triggered run
+  carries `Build.Reason = ResourceTrigger`. The Build REST API (`az pipelines runs list` /
+  `show`, api-version 7.1) reported `reason = manual` for both a pipeline-completion trigger
+  with a `stages:` filter (runs 3950 to 3953, 3976 to 3979) and an ACR container trigger (runs
+  3934 to 3937, 3954 to 3957), with `requestedBy = Microsoft.VisualStudio.Services.TFS`. The
+  truth is in `triggerInfo.pipelineTriggerType` (`PipelineCompletion` or `ContainerImage`) plus
+  `alias`, and `version` or `tag`. Our `Start-EnvironmentDeploy.ps1` matched on
+  `reason -eq 'resourceTrigger'` and never matched a run. We did not verify the in-run
+  `Build.Reason` value: our templates only compare it against `PullRequest` and nothing prints
+  it, so the cheat sheet may be right inside the job while the REST view differs. Suggestion:
+  add the REST-side shape (`reason`, `requestedBy`, `triggerInfo`) to the cheat sheet next to
+  the in-run variable.
+* Context 5 above says "we gate completion-triggered runs on `Build.Reason` to avoid the double
+  run". We never did; the only `Build.Reason` gate in the templates excludes pull requests. Kept
+  as written, corrected here.
+
+**Wish it had**
+
+* A stage-filtered completion trigger (`trigger.stages: [Publish]`) queues the consumer as soon
+  as that stage completes, while the producer run is still in progress (3976 to 3979 were queued
+  at 03:18 UTC with 3964 still in its Deploy stages). The reference describes completion
+  triggers as "when another pipeline completes successfully". The trap in `handoff-6.md` about
+  the trigger firing "even when the run later fails" (runs 3930 to 3933, fired by a Publish
+  stage whose run then went red in Deploy) is the same gap seen from the other side: the
+  consumer is queued on the stage, not on the run, in both directions.
+* Nothing addresses "a producer that re-publishes an unchanged output re-fires every
+  consumer". GitVersion mints a new prerelease on every commit and `az acr import --force`
+  re-pushes the channel tag, so a pin bump on either producer costs a full set of consumer
+  runs. The path-filter approach was ours. Build-tag trigger filters (`trigger.tags`, which the
+  reference says it validated in its runs 3711 to 3716) would be the reference-backed
+  alternative if the producers could tag only the runs that carry real changes; ours cannot
+  tell a real change from a re-publish yet.
+* Whether a single `*` in a CI `paths` filter crosses `/` on Azure DevOps Services. Learn's
+  note on the subject is scoped to Server 2020 and the reference's "anywhere" wording does not
+  settle it, so `base-images/*` may or may not match `base-images/<image>/Dockerfile`, where
+  every file in that pipeline lives. We moved the containers pipeline to the documented
+  directory form (`base-images`); a one-line "on Services, `*` does / does not cross `/`" with a
+  validated run would close it.
+* Follow-on to the stage-completion row above: at parallelism 1 the consumer runs that a
+  stage-filtered completion trigger queues sit in the queue ahead of the producer's remaining
+  stages (measured on 3964: Publish finished 03:18:22 UTC, consumer 3976 queued 03:18:22 UTC,
+  the producer run finished 03:42:43 UTC; 63.5 min wall time for a run whose useful work ended
+  at 03:18). That distorts wall-clock readings of the producer and breaks any detection window
+  anchored on the producer's finish time; the window has to start at the producer's queue time
+  and match on `triggerInfo.pipelineId`.
