@@ -19,17 +19,19 @@ variables:
 stages:
 - stage: Validate
   jobs:
+  # v1.1.0 proof run (ADR 0008): this pipeline moves to the self-hosted pool first, unconditionally,
+  # before any consumer opts in. Land this only once meridian-agents exists and carries the
+  # placeholder agent; keep it a separate commit from the rest of the v1.1.0 template changes.
   - job: Lint
     pool:
-      vmImage: ubuntu-24.04
+      name: meridian-agents
     steps:
     - checkout: self
       persistCredentials: false
       fetchDepth: 1
     - script: |
         set -euo pipefail
-        pipx install yamllint==1.35.1
-        yamllint -c .yamllint.yml .
+        pipx run yamllint==1.35.1 -c .yamllint.yml .
       displayName: yamllint
     - script: |
         set -euo pipefail
@@ -43,7 +45,7 @@ stages:
     displayName: Compile consumers against this commit
     dependsOn: Lint
     pool:
-      vmImage: ubuntu-24.04
+      name: meridian-agents
     steps:
     - checkout: self
       persistCredentials: false
