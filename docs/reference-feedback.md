@@ -600,6 +600,30 @@ base-image re-import), about 40 hosted minutes per set of four at parallelism 1.
 
 ---
 
+## Context 5 addendum 4: `AzureStaticWebApp@0` runs Docker internally (2026-09-22, templates v1.1.0)
+
+**Tripped us up**
+
+* Designing `agentPool: platform` support for `app-frontend`'s static-site deploy (ADR 0008:
+  Container Apps jobs cannot run Docker inside the container), we found that `AzureStaticWebApp@0`
+  itself shells out to Docker to build and deploy the app, not only that Docker happens to be
+  available on the agent. Context 5 above already flags two other built-in-tasks-catalog gaps on
+  this same page (`AzureCLI@3`/ARM version support, `NodeTool@0` deprecation); this is the same
+  class of gap, one level deeper: nothing in the catalog or the reference says a task's own
+  *implementation* depends on Docker on the agent, as opposed to the workload it deploys needing
+  Docker. v1.1.0 replaces the task with `npx @azure/static-web-apps-cli@2.0.10 deploy`, which does
+  not shell out to Docker. This is a documented design decision, not yet an observed one: no agent
+  has run a job on the pool yet, so the swap has not been exercised live.
+
+**Wish it had**
+
+* A "runs Docker internally" flag next to the handful of built-in tasks that do (the Static Web
+  Apps task is one; there may be others we have not needed yet), separate from whether the
+  *workload* being deployed needs Docker. The self-hosted-agent pages already warn that ACA jobs
+  cannot run Docker; the tasks catalog is the other half of that check and does not carry it.
+
+---
+
 ## Context 11: Agent hosting, Managed DevOps Pools vs. Container Apps jobs (2026-09-22)
 
 New context: no working session had touched agent hosting before today. Page used:
