@@ -48,9 +48,10 @@ resource storage 'Microsoft.Storage/storageAccounts@2025-01-01' existing = {
   scope: resourceGroup(dataResourceGroup)
 }
 
-resource approvalService 'Microsoft.App/containerApps@2025-01-01' existing = {
-  name: 'ca-${prefix}-${environment}-approval-service'
-}
+// Sibling FQDN is derived by convention (appName.defaultDomain) instead of looked up as an
+// `existing` Microsoft.App/containerApps resource: after a teardown approval-service does not
+// exist yet, and a redeploy of worker-jobs must not depend on it having deployed first.
+var approvalServiceFqdn = 'ca-${prefix}-${environment}-approval-service.${containerAppsEnvironment.properties.defaultDomain}'
 
 resource app 'Microsoft.App/containerApps@2025-01-01' = {
   name: appName
@@ -97,7 +98,7 @@ resource app 'Microsoft.App/containerApps@2025-01-01' = {
             { name: 'AZURE_CLIENT_ID', value: identity.properties.clientId }
             { name: 'Meridian__Environment', value: environment }
             { name: 'Messaging__QueueServiceUri', value: storage.properties.primaryEndpoints.queue }
-            { name: 'Downstream__Approvals__BaseAddress', value: 'https://${approvalService.properties.configuration.ingress.fqdn}/' }
+            { name: 'Downstream__Approvals__BaseAddress', value: 'https://${approvalServiceFqdn}/' }
           ]
           probes: [
             {
