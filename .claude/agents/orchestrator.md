@@ -34,7 +34,9 @@ folders, how teams communicate, and the definition of done. Follow it exactly.
   dependencies, let teammates claim them and message each other directly with `SendMessage`.
   Teammates message you only with `[ask]`, `[blocked]` or `[done]`.
 * Runs, approvals, teardown and redeploy go to `ops`. Verification goes to `reviewer`.
-  Handoffs, reference feedback, executive notes and memory go to `scribe`.
+  After every `[done]`, the diff goes to `docs-keeper`, which fixes the READMEs, contracts,
+  ADRs and tables the change made stale; no PR opens before it has reported. Handoffs,
+  reference feedback, executive notes and memory go to `scribe`.
 
 ## How you report
 

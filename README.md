@@ -118,9 +118,10 @@ pwsh ./tooling/Grant-FeedRole.ps1 -ReadOnly             # current feed role of t
 the session you talk to acts as the **orchestrator** (plans, delegates, verifies, integrates),
 and the specialists under [`.claude/agents/`](.claude/agents/) own folders along the same
 boundary the platform enforces (`pipelines-dev`, `platform-dev`, `services-dev`,
-`frontend-dev`, `tooling-dev`) with `ops`, `reviewer` and `scribe` beside them. Agent teams are
-enabled in `.claude/settings.json`, so the devs message each other directly and share a task
-list instead of routing everything through the orchestrator. `claude --agent orchestrator`
+`frontend-dev`, `tooling-dev`) with `ops`, `reviewer`, `docs-keeper` (reviews the docs after
+every change and keeps them true to the code) and `scribe` (the session record) beside them.
+Agent teams are enabled in `.claude/settings.json`, so the devs message each other directly
+and share a task list instead of routing everything through the orchestrator. `claude --agent orchestrator`
 starts a session in the pure orchestrator role; the default session gets the same role from
 `CLAUDE.md`.
 

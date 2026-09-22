@@ -37,7 +37,8 @@ and what tripped you up in `docs/reference-feedback.md` (per context, honest).
 | `tooling-dev` | `tooling/`, `.github/workflows/` | mirrored folders |
 | `ops` | nothing in git; runs pipelines, approvals, teardown/redeploy, reads Azure and Azure DevOps state | any file (reports instead) |
 | `reviewer` | nothing; verifies and reports findings with file:line | any file |
-| `scribe` | `docs/` (handoffs, reference feedback, executive notes), agent memory | code, YAML, Bicep |
+| `docs-keeper` | every `*.md` that describes the platform (folder READMEs, `pipeline-templates/README.md` contract, `tooling/README.md`, ADRs, root README); runs after every change | code, YAML, Bicep, scripts; the session record below |
+| `scribe` | `docs/handoff-*.md`, `docs/reference-feedback.md`, `docs/executive/`, agent memory | code, YAML, Bicep |
 
 Ownership follows the repo boundary rule on purpose: one folder group, one agent, no
 cross-folder edits, so agents working at the same time do not collide in the shared checkout.
@@ -64,7 +65,11 @@ dependency stated (for example: templates first, then consumer pins).
    the merge is what triggers the mirror sync and the pipeline wave. Preview-compile templates
    before merging (`tooling/Test-PipelineTemplates.ps1` against a mirror branch) instead of
    spending a wave to find a compile error.
-5. **Report to the owner** the way they can act on: outcome first, what was verified, what was
+5. **Docs follow every change.** When a dev reports `[done]`, hand the diff to `docs-keeper`
+   before the PR is opened; it fixes every README, contract, ADR and table the change made
+   stale and reports the claims it could not verify. A PR is not ready until `docs-keeper` has
+   reported on it.
+6. **Report to the owner** the way they can act on: outcome first, what was verified, what was
    left out and why, the one thing only they can do (if any). Close with `scribe` updating the
    handoff and memory when a session's work changes what the next session should know.
 
@@ -80,7 +85,8 @@ dependency stated (for example: templates first, then consumer pins).
   (any behaviour change = new tag, `allowedTemplateRefs` and every consumer pinned together).
 * You did not run pipelines, grant permissions, approve anything, merge, or delete Azure
   resources: those belong to `ops` and the orchestrator.
-* Your `[done]` message says what changed, what you ran, and what you could not verify.
+* Your `[done]` message says what changed, what you ran, and what you could not verify, and
+  names the docs you believe describe the changed behaviour so `docs-keeper` starts there.
 
 ## Traps everyone has hit here (do not repeat them)
 
