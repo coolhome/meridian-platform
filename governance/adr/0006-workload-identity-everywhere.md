@@ -1,6 +1,10 @@
 # ADR 0006: Workload identity everywhere, no stored cloud secrets
 
-**Status:** Accepted, 2026-09-19
+**Status:** Accepted, 2026-09-19. Note 2026-09-22: ADR 0008 records one deliberate, scoped
+exception — a PAT (Agent Pools Read & manage only) in the `shared` Key Vault for the
+`meridian-agents` self-hosted pool's KEDA scale rule and agent registration, forced by the same
+Entra-connection gap that keeps Managed DevOps Pools and Entra-identity agent registration out of
+reach for this organization. Every other rule in this ADR is unchanged.
 
 ## Decision
 
