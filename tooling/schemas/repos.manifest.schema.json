@@ -36,6 +36,7 @@
         "syncBranches": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
         "artifactsFeed": { "type": "string" },
         "agentPool": { "type": "string" },
+        "selfHostedPool": { "type": "string" },
         "templatesRepository": { "type": "string" },
         "templatesRef": { "type": "string", "pattern": "^refs/(tags|heads)/" },
         "allowedTemplateRefs": { "type": "array", "items": { "type": "string", "pattern": "^refs/(tags|heads)/" }, "minItems": 1 },
