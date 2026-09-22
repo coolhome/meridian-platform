@@ -21,20 +21,23 @@ and it is manual on purpose.
 
 ## State
 
-`main` at `2e8bb39`: PR #4 (v1.0.7, `54a282a`, merged 00:02 UTC), PR #6 (v1.0.8, `08c5bb7`,
+`main` at `42116ea`: PR #4 (v1.0.7, `54a282a`, merged 00:02 UTC), PR #6 (v1.0.8, `08c5bb7`,
 00:58 UTC), PR #7 (services float on the library prerelease, `b580a3b`, 01:40 UTC), PR #8
-(v1.0.9, `95fa81e`, 02:35 UTC) and PR #5 ("Agentic orchestration: working agreement, dev agents
-per folder, agent teams; handoff 6", `2e8bb39`, squash-merged 03:30 UTC). PR #5 carried the
-agent roster, the teardown and deploy scripts' documentation, the docs-keeper pass, the
-identity-script fix and this handoff; the roster and `CLAUDE.md` are live on `main`, and the
-project agents load in a new session (`claude --agent orchestrator`). Working branch at the time
-of writing: `fix/producer-triggers`, not merged (see "Every service runs three times per wave"
-below). The v1.0.9 wave made dev green end to end (four Container Apps, the Static Web App,
-observability); `platform-infrastructure-cicd` is the only red, on the role grant. Hosted
-minutes: 657 before the v1.0.7 wave, 710 after it, 758 after the v1.0.8 wave, 829 at 03:25 UTC
-during the v1.0.9 wave, 859 at 03:55 UTC with the eight duplicates and `governance-ci` 3980
-still queued (about 50 minutes per full wave of 18 runs; the per-run "Minutes" column
-overstates because it includes queue wait behind the single agent).
+(v1.0.9, `95fa81e`, 02:35 UTC), PR #5 ("Agentic orchestration: working agreement, dev agents
+per folder, agent teams; handoff 6", `2e8bb39`, squash-merged 03:30 UTC) and PR #9 ("Producers
+skip template pin bumps; deploy script recognises triggered runs by triggerInfo; handoff 6 wave
+read", `42116ea`, 03:55 UTC). PR #5 carried the agent roster, the teardown and deploy scripts'
+documentation, the docs-keeper pass, the identity-script fix and this handoff; the roster and
+`CLAUDE.md` are live on `main`, and the project agents load in a new session
+(`claude --agent orchestrator`). Working branch at the time of writing:
+`fix/deploy-script-wait` (the `_links` guard in `Start-EnvironmentDeploy.ps1`, see "After the
+wave" below), not merged. Dev is fully green: the v1.0.9 wave deployed the four Container Apps,
+the Static Web App and observability, and run 3985 (04:44 UTC, after the owner's role grant)
+deployed shared and dev infrastructure end to end. Every one of the eleven pipelines has had a
+green run. Hosted minutes: 657 before the v1.0.7 wave, 710 after it, 758 after the v1.0.8 wave,
+829 at 03:25 UTC during the v1.0.9 wave, 859 at 03:55 UTC, 941 at 04:45 UTC with the queue
+empty (about 50 minutes per full wave of 18 runs; the per-run "Minutes" column overstates
+because it includes queue wait behind the single agent).
 
 | Done | Where |
 | --- | --- |
@@ -71,7 +74,7 @@ what-if, alerts' failing periods accepted, and no deploy stage ran after a faile
 | --- | --- | --- | --- |
 | platform-libraries-cicd | 3942 | **green, end to end** | Publish (1.0.0-10) and Deploy infra dev: the six queues exist on `stmrddevch2609`. The unique-suffix fix held. |
 | app-frontend-cicd, containers-base-images, pipeline-templates-ci | 3946, 3948, 3940 | green | Second shared approval recorded by the approvals script (Promote, run 3948). |
-| platform-infrastructure-cicd | 3941 | red, What-if shared | Same authorization failure; waits for the role grant below. |
+| platform-infrastructure-cicd | 3941 | red, What-if shared | Same authorization failure; waited for the role grant (done 04:05 UTC, green in run 3985). |
 | identity/approval/app-backend/worker-jobs | 3950-3953 | red, `dotnet restore` | Cache step now passes; NU1102 "Unable to find package Meridian.ServiceDefaults (>= 1.0.0), found 1.0.0-10". GitVersion (ContinuousDelivery, main label `''`) stamps every untagged main build as a prerelease and the services pinned a stable `1.0.0` that nothing produces until `tag-release.yml` runs, which needs `prod` in the list. **Fixed in PR #7**: `MeridianPackageVersion` defaults to `1.0.*-*` (highest 1.0.x including prereleases). |
 | same four | 3943-3945, 3947 and 3954-3957 | red in 0 to 1 s | Mirror-push and base-image-tag triggers that validated before a green libraries run existed. Expected; every containers Promote re-tags `10.0` and fires all four services by design. |
 | observability-cicd | 3949 | red, Deploy dev | Same four `*-restarts` metric alerts; Container Apps still absent. |
@@ -118,7 +121,8 @@ now holds `base/build-tools`, `base/dotnet-aspnet`, `base/dotnet-runtime`,
 `services/app-backend`, `services/approval-service`, `services/identity-service` and
 `services/worker-jobs`. The frontend is at `swa-mrd-dev-app-frontend`, host
 `gray-desert-0ed69be0f.6.azurestaticapps.net` (run 3968). With that, dev is green end to end
-except `platform-infrastructure-cicd`, which waits on the owner's role grant below. A third
+except `platform-infrastructure-cicd`, which went green in run 3985 after the owner's role
+grant (see "After the wave"). A third
 executive narrative was written from this evidence: `docs/executive/2026-09-21-rollout-narrative.md`
 (the orchestrator, via the exec-narrative skill; indexed in `docs/executive/README.md`; it
 supersedes the second note).
@@ -148,8 +152,8 @@ hosted minutes at parallelism 1. The Build REST API reports every resource-trigg
 the only reliable discriminator. The wave tables above attributed 3934 to 3937 and 3954 to
 3957 to the base-image tag trigger; `triggerInfo` confirms it.
 
-The fix, on branch `fix/producer-triggers` (not merged at the time of writing; the reviewer's
-pass found one blocker, fixed in the branch, two comment fixes and two open caveats, all below):
+The fix, merged as PR #9 (`42116ea`, 03:55 UTC; the reviewer's pass found one blocker, fixed
+before the merge, two comment fixes and two open caveats, all below):
 
 * The two producers stop running on a pin bump: `containers/azure-pipelines.yml` CI paths
   include only `base-images` and exclude `azure-pipelines.yml`;
@@ -167,15 +171,19 @@ pass found one blocker, fixed in the branch, two comment fixes and two open cave
   structural at parallelism 1, because the four fired runs sit in the queue ahead of the
   libraries Deploy stages. Fix applied: the window starts at the libraries run's own queue
   time, the match is on `triggerInfo.pipelineId`, and the list is
-  `az pipelines runs list --top 10 --query-order QueueTimeDesc`.
+  `az pipelines runs list --top 10 --query-order QueueTimeDesc`. First live use, run 3985
+  (04:08 UTC): the script queued the run correctly, then its wait loop died on `_links` the
+  moment the run completed and exited 1 against a green run; see "After the wave".
 * Two comment fixes from the same review: the quoted ops commands were missing the mandatory
   `-Environment dev`; and the containers CI path is the directory form `base-images` instead of
   `base-images/*`, because neither Learn nor the reference settles whether a single `*` crosses
   `/` on Azure DevOps Services, and every file there is two levels deep. Until now every pin
   bump ran the pipeline anyway, so a non-matching path filter was masked.
-* The fixing push itself does not fire the producers: a CI trigger reads the pushed branch's
-  copy of the YAML (reference, Trigger Semantics), and the new copy excludes the one file the
-  push changes in each producer's mirror. The reviewer verified, read-only, that
+* The fixing push itself does not fire the producers, verified: the PR #9 sync (03:55 UTC)
+  pushed both mirrors (`meridian-containers` 78feb38, `meridian-platform-libraries` bd572b1)
+  and queued no run. A CI trigger reads the pushed branch's copy of the YAML (reference,
+  Trigger Semantics), and the new copy excludes the one file the push changes in each
+  producer's mirror. The reviewer verified, read-only, that
   `--query-order QueueTimeDesc` is a valid `az pipelines runs list` value and that definitions
   175 (`containers-base-images`) and 163 (`platform-libraries-cicd`) are YAML-sourced with no
   UI trigger override, so the pushed-branch evaluation rule applies.
@@ -186,33 +194,61 @@ pass found one blocker, fixed in the branch, two comment fixes and two open cave
   (`SECURITY.md`, `.azuredevops/*`) still runs the libraries CI and publishes a prerelease,
   because only `README.md`, `azure-pipelines.yml` and `pipelines/*` are excluded.
 
-## Owner actions (the only two things the automation was refused)
+### After the wave (04:05 to 04:45 UTC): infrastructure green, every pipeline green once
 
-1. **Grant Resource Policy Contributor to both pipeline identities** (the sandbox refuses role
-   assignments; `New-PipelineIdentity.ps1` does this for new environments):
+Read from the API and Azure between 04:08 and 04:45 UTC.
+
+* The owner granted Resource Policy Contributor to both pipeline identities at subscription
+  scope at about 04:05 UTC. `az role assignment list` shows Contributor, Role Based Access
+  Control Administrator and Resource Policy Contributor on `625c9e1a-...` and `c8881049-...`.
+* Run 3985 `platform-infrastructure-cicd`, queued 04:08 UTC by
+  `Start-EnvironmentDeploy.ps1 -Environment dev -Only platform-infrastructure-cicd` (the
+  script's first live use), **succeeded end to end at 04:44:29 UTC**: Validate, What-if shared,
+  Deploy shared, What-if dev, Deploy dev all green. The shared approval (created 04:36:28 UTC)
+  was approved at 04:37 UTC by `Approve-PendingApprovals.ps1 -Wait`. Azure: subscription
+  deployments `policy-shared` (04:39 UTC), `policy-dev` (04:42 UTC) and `platform-3985`
+  (04:44 UTC) Succeeded; resource-group deployments `cae-dev` and `keyvault-dev` in
+  `rg-mrd-dev-platform` Succeeded at 04:42 UTC. First green infrastructure run, and the first
+  time the policy module was applied by the pipeline identity rather than the owner.
+* The eight duplicates (3976 to 3979, 3981 to 3984) all completed green by 04:45 UTC;
+  `governance-ci` 3980 succeeded at 03:52 UTC. Every one of the eleven pipelines has now had a
+  green run. Queue empty; hosted minutes 941 of 1800 at 04:45 UTC.
+* Defect found by the live use: the deploy script queued the run correctly, but its `Wait-Runs`
+  loop died with `The property '_links' cannot be found on this object` (StrictMode, line 86,
+  `url = $b._links.web.href` on `az pipelines runs show` output) the moment the run completed,
+  so the script exited 1 although the run was green. Fix on `fix/deploy-script-wait`
+  (tooling-dev), not merged at the time of writing.
+* The PR #9 sync (`42116ea`, 03:55 UTC) pushed both producer mirrors (`meridian-containers`
+  78feb38, `meridian-platform-libraries` bd572b1) and queued no run: the path-filter fix
+  behaved as predicted on its own push.
+
+## Owner actions (both done)
+
+1. **Grant Resource Policy Contributor to both pipeline identities**: done by the owner at
+   about 04:05 UTC (the sandbox refuses role assignments; `New-PipelineIdentity.ps1` does this
+   for new environments). Run 3985 went green on it. The commands, for the record:
 
    ```bash
    az role assignment create --assignee-object-id 625c9e1a-233c-4246-9d03-153efa34dec4 --assignee-principal-type ServicePrincipal --role "Resource Policy Contributor" --scope /subscriptions/ac39dedd-f5fd-404c-9013-07575f55a6ec
    az role assignment create --assignee-object-id c8881049-61ae-4c68-8610-76383d33689d --assignee-principal-type ServicePrincipal --role "Resource Policy Contributor" --scope /subscriptions/ac39dedd-f5fd-404c-9013-07575f55a6ec
    ```
 
-   Then `pwsh tooling/Start-EnvironmentDeploy.ps1 -Environment dev -Only platform-infrastructure-cicd -ApproveShared`.
 2. **Merge PR #5**: done, squash-merged 03:30 UTC as `2e8bb39` (bare `gh pr merge` is refused
    in the sandbox; the `/merge` skill path is what has worked).
 
 ## Do next, in order
 
-1. Merge `fix/producer-triggers` (this branch: the two producer CI path filters, the
-   `Start-EnvironmentDeploy.ps1` `triggerInfo` fix, README updates). After that, the owner's
-   Resource Policy Contributor grants above are the only thing between
-   `platform-infrastructure-cicd` and green.
-2. After the role grant, re-run platform-infrastructure (command above) and approve shared;
-   that is also the first live test of `Start-EnvironmentDeploy.ps1`.
-3. Re-read hosted minutes with `pwsh .claude/skills/exec-narrative/scripts/Get-PipelineState.ps1`
-   once the duplicates (3976 to 3979, 3981 to 3984) and 3980 have finished; 859 of 1800 at
-   03:55 UTC was the last reading. The PR #5 sync question is settled: it fired only
-   `governance-ci` (3980), not platform-infrastructure.
-4. Exercise the teardown for real once dev is fully green: `Remove-AzureEnvironment.ps1
+Nothing blocks a green platform now; what remains is backlog.
+
+1. Merge `fix/deploy-script-wait` (the `_links` guard in `Start-EnvironmentDeploy.ps1`'s wait
+   loop) so the script's exit code matches the run it waited for.
+2. The next pin-bump wave (the next template tag) is the live test of the triple-run fix.
+   Expect each service once per wave, and the libraries-completion and base-image sets only
+   when a producer actually publishes; count the runs by `triggerInfo`, not by id or reason.
+3. Sunday's scheduled `containers-base-images` rebuild needs an approver for the `shared`
+   Promote (`Approve-PendingApprovals.ps1 -Wait`, or a person in the portal); its re-import of
+   the `10.0` tags fires the four services' ContainerImage set by design.
+4. Exercise the teardown for real now that dev is fully green: `Remove-AzureEnvironment.ps1
    -Environment dev -Force`, then `Start-EnvironmentDeploy.ps1 -Environment dev -ApproveShared`.
    Watch the Key Vault diagnostic setting (points at the deleted workspace until the redeploy
    updates it) and the `meridian-dev-kv` variable group, which links to the kept vault.
@@ -252,6 +288,9 @@ pass found one blocker, fixed in the branch, two comment fixes and two open cave
 * A pipeline-completion trigger with a `stages:` filter queues the consumer at stage
   completion; anchor any detection window on the producer's queue time, not its finish time
   (3964: Publish done 03:18:22 UTC, run done 03:42:43 UTC, consumer 3976 queued 03:18:22 UTC).
+* Under StrictMode, read optional properties of `az` output through a guard. `az pipelines runs
+  show` carries no `_links`; `$b._links.web.href` killed the deploy script's wait loop (exit 1)
+  the moment run 3985 went green.
 * The auto-mode permission classifier blocks ad-hoc permission grants, Azure role assignments,
   bare `gh pr merge`, and `rm -rf`. `.claude/settings.local.json` allows the two tooling scripts
   and those rules are live in a fresh session; the `/merge` skill merged where a bare `gh pr merge`
