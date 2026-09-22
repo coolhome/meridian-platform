@@ -1,15 +1,19 @@
 # Gitleaks configuration for this repository (picked up automatically by `gitleaks git .` in the
 # governed security-scan step). Default rules stay in force; the allowlist covers the public Azure
-# built-in policy definition ids in bicep/modules/policy-assignments.bicep, which the
-# generic-api-key rule mistakes for credentials in every commit that carries them.
+# built-in policy definition ids in bicep/modules/policy-assignments.bicep, and Entra principal
+# object ids used as role-assignment parameters (e.g. bicep/params/shared.bicepparam), which the
+# generic-api-key rule mistakes for credentials in every commit that carries them. A GUID is
+# allowlisted here only when it is a public identifier (a policy definition id or a principal
+# object id used for an RBAC role assignment), never when it could be a credential.
 [extend]
 useDefault = true
 
 [[allowlists]]
-description = "Azure built-in policy definition ids are public identifiers, not secrets"
+description = "Azure built-in policy definition ids and role-assignment principal object ids are public identifiers, not secrets"
 regexTarget = "line"
 regexes = [
   '''e56962a6-4747-49cd-b67b-bf8b01975c4c''',
   '''96670d01-0a4d-4649-9c89-2d3abc0a5025''',
   '''b2982f36-99f2-4db5-8eff-283140c09693''',
+  '''25ca776b-197d-4d33-be4c-7f71d4aafced''',
 ]

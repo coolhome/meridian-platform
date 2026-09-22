@@ -12,4 +12,6 @@ param allowedLocations = ['eastus2', 'centralus']
 param agentPoolEnabled = false
 // Subscription owner's AAD object id. An RBAC-authorized vault grants Owner no data actions, so
 // this is what lets the owner run `az keyvault secret set` for azdo-agent-pat.
+// This is a public Entra object id used only for a role assignment, not a credential; it is
+// allowlisted for the Gitleaks generic-api-key rule in platform-infrastructure/.gitleaks.toml.
 param secretsOfficerPrincipalId = '25ca776b-197d-4d33-be4c-7f71d4aafced'
