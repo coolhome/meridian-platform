@@ -6,9 +6,20 @@ trigger:
     include:
     - main
     - release/*
+  # A template pin bump (azure-pipelines.yml or pipelines/* alone) must not publish a new
+  # prerelease of unchanged libraries: the Publish-stage completion trigger then rebuilds all four
+  # services (runs 3976-3979). The exclusion covers any edit to azure-pipelines.yml or pipelines/*
+  # alone, not only pin bumps, so such edits and template changes to library.yml are exercised by
+  # ops queueing this pipeline:
+  #   tooling/Start-EnvironmentDeploy.ps1 -Environment dev -Only platform-libraries-cicd
+  # Re-queueing an already-published commit republishes the same GitVersion number and the Publish
+  # push will most likely be rejected as a duplicate (not verified live): queue a new commit or
+  # accept a red Publish.
   paths:
     exclude:
     - README.md
+    - azure-pipelines.yml
+    - pipelines/*
 
 resources:
   repositories:

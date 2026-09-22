@@ -5,11 +5,18 @@ trigger:
   branches:
     include:
     - main
+  # Only the image inputs trigger CI; azure-pipelines.yml is deliberately absent. A template pin
+  # bump must not rebuild and re-promote the base images: re-promoting the 10.0 channel tag
+  # re-fires every service pipeline through its baseImage container resource (runs 3934-3937 and
+  # the wave-4 equivalents). A template change to container-images.yml is exercised by the Sunday
+  # schedule below or by ops queueing this pipeline deliberately, accepting that same side effect
+  # on purpose (Promote re-imports the channel tags and re-fires the four services):
+  #   tooling/Start-EnvironmentDeploy.ps1 -Environment dev -IncludeShared -Only containers-base-images
+  # base-images is the directory form: it matches every file under it (base-images/<image>/Dockerfile).
   paths:
     include:
-    - base-images/*
+    - base-images
     - image-manifest.json
-    - azure-pipelines.yml
 
 # Weekly rebuild picks up upstream patches even when nothing changed here.
 schedules:

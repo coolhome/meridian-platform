@@ -19,6 +19,18 @@ so the required-template and branch-control checks apply to package publishing t
 project-scoped: `azure-pipelines.yml` passes the bare name (`feed: meridian`) and the template
 pushes to `$(System.TeamProject)/meridian`.
 
+## What runs the pipeline
+
+CI on `main` and `release/*` runs on the library sources. `README.md`, `azure-pipelines.yml` and
+`pipelines/*` are excluded on purpose: GitVersion mints a new prerelease (`1.0.0-<n+1>`) on every
+commit, so a template pin bump alone would publish unchanged libraries under a new version, and
+the `Publish` stage completion trigger in the four .NET services would rebuild them all. A
+template change to `library.yml` is exercised by ops queueing the pipeline:
+
+```bash
+pwsh tooling/Start-EnvironmentDeploy.ps1 -Environment dev -Only platform-libraries-cicd
+```
+
 ## Consuming
 
 Services pin an explicit version:

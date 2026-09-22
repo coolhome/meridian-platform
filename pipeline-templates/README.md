@@ -54,6 +54,13 @@ mirrored `main` commit and never moves an existing one; the bootstrap lists ever
 the required-template checks; `tooling/Test-RepoBoundaries.ps1` fails a consumer pin that differs
 from `templatesRef`. `azure-pipelines.yml` here compiles every consumer listed in
 `consumers.json` against the current commit using the pipelines preview API before a tag is cut.
+The two producers exclude their entry files from CI on purpose (`containers` triggers only on files under
+`base-images/` and on `image-manifest.json`; `platform-libraries` excludes `azure-pipelines.yml` and
+`pipelines/*`), so a pin bump neither rebuilds the base images nor publishes a new library
+prerelease; a template change to `container-images.yml` or `library.yml` is exercised by the
+`containers` weekly schedule or by ops queueing those pipelines
+(`tooling/Start-EnvironmentDeploy.ps1 -Environment dev -IncludeShared -Only containers-base-images`
+and `-Only platform-libraries-cicd`).
 
 ## Layout
 
