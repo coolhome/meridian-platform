@@ -55,4 +55,8 @@ jobs:
             templatePath: ${{ parameters.templatePath }}
             parametersFile: ${{ parameters.parametersFile }}
             additionalParameters: ${{ parameters.additionalParameters }}
-            deploymentName: ${{ parameters.name }}-$(Build.BuildId)
+            # Subscription-scope deployments (platform-infrastructure) share one scope across every
+            # environment; without the environment in the name, Deploy_shared and Deploy_dev in the
+            # same build collided on e.g. "platform-3991" and the later deployment's outputs
+            # (read back empty here) silently overwrote the earlier one's (run 3991).
+            deploymentName: ${{ parameters.name }}-${{ parameters.environment }}-$(Build.BuildId)
