@@ -54,6 +54,7 @@ stages:
           else
             bin="$(Agent.TempDirectory)/hadolint"
           fi
+          "$bin" --version
           "$bin" --failure-threshold warning "${{ image.context }}/Dockerfile"
         displayName: hadolint ${{ image.name }}
   - template: ../../jobs/security-scan.yml
@@ -123,9 +124,10 @@ stages:
                   scriptLocation: inlineScript
                   inlineScript: |
                     set -euo pipefail
-                    # Skip the re-import (and the channel-tag move that fires the four services'
-                    # ContainerImage trigger) when the channel tag already points at this build's
-                    # digest: an unchanged base image must not re-fire every consumer (runs 3981-3984).
+                    # Every fresh build produces a new config digest (the APP_VERSION label and the
+                    # `created` timestamp change per build), so this only skips the re-import when
+                    # Promote re-runs for a build already promoted under this same tag (a stage retry
+                    # or a redeploy of an unchanged run), not on an ordinary rebuild.
                     new_digest=$(az acr repository show --name "$ACR_NAME" --image "base/${IMAGE}:${BUILD_NUMBER}" --query digest -o tsv)
                     old_digest=$(az acr repository show --name "$ACR_NAME" --image "base/${IMAGE}:${CHANNEL}" --query digest -o tsv 2>/dev/null || echo "")
                     if [ -n "$old_digest" ] && [ "$new_digest" = "$old_digest" ]; then

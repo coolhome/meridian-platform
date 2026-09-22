@@ -31,8 +31,7 @@ stages:
       fetchDepth: 1
     - script: |
         set -euo pipefail
-        pipx install yamllint==1.35.1
-        yamllint -c .yamllint.yml .
+        pipx run yamllint==1.35.1 -c .yamllint.yml .
       displayName: yamllint
     - script: |
         set -euo pipefail
