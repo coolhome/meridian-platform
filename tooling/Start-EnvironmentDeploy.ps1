@@ -41,7 +41,7 @@ param(
     [switch]$ApproveShared,
     [switch]$IncludeShared,
     [string[]]$Only,             # run just these pipelines (still in the order above)
-    [int]$TimeoutMinutes = 90,
+    [int]$TimeoutMinutes = 180,
     [int]$PollSeconds = 30,
     [string]$ManifestPath,
     [string]$Pat
@@ -85,7 +85,8 @@ function Wait-Runs([object[]]$Runs) {
         if ((Get-Date) -gt $deadline) { throw "timeout after $TimeoutMinutes minutes with $($pending.Count) run(s) still going: $($pending.Values -join ', ')" }
         Start-Sleep -Seconds $PollSeconds
         foreach ($id in @($pending.Keys)) {
-            $b = Invoke-AzCli pipelines runs show --id $id
+            $b = Invoke-AzCli pipelines runs show --id $id -AllowFailure
+            if (-not $b) { Write-MeridianInfo "poll of run $id failed transiently; retrying next cycle"; continue }
             if ($b.status -ne 'completed') { continue }
             $minutes = if ($b.startTime -and $b.finishTime) { [math]::Round(([datetime]$b.finishTime - [datetime]$b.startTime).TotalMinutes, 1) } else { '' }
             $results.Add([pscustomobject]@{ pipeline = $pending[$id]; run = $id; number = $b.buildNumber; result = $b.result; minutes = $minutes; url = (Get-RunUrl $id) })
@@ -119,9 +120,12 @@ function Test-ProducerTriggeredRun([object]$Run, [int]$ProducerRunId, [datetime]
 
 $approver = $null
 if ($ApproveShared) {
-    if (-not ($Pat ?? $env:AZDO_PAT)) { throw '-ApproveShared needs AZDO_PAT (Approve-PendingApprovals.ps1 has no credential-manager fallback)' }
+    # An unbound [string]$Pat is '', not $null, so '$Pat ?? $env:AZDO_PAT' never falls through to the
+    # environment variable; the module's own Connect-MeridianAdo avoids this the same way (Meridian.Ado.psm1:63).
+    $patValue = if ($Pat) { $Pat } else { $env:AZDO_PAT }
+    if (-not $patValue) { throw '-ApproveShared needs AZDO_PAT (Approve-PendingApprovals.ps1 has no credential-manager fallback)' }
     $script = Join-Path $PSScriptRoot 'Approve-PendingApprovals.ps1'
-    $approver = Start-Job -ScriptBlock { param($s, $max, $pat) & $s -Wait -MaxMinutes $max -Pat $pat } -ArgumentList $script, $TimeoutMinutes, ($Pat ?? $env:AZDO_PAT)
+    $approver = Start-Job -ScriptBlock { param($s, $max, $pat) & $s -Wait -MaxMinutes $max -Pat $pat } -ArgumentList $script, $TimeoutMinutes, $patValue
     Write-MeridianInfo "Approve-PendingApprovals.ps1 -Wait is running alongside (job $($approver.Id))"
 }
 
