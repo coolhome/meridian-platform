@@ -67,6 +67,11 @@ $servicePipelines = @($m.repos | Where-Object { $_.tier -eq 'service' } | ForEac
 function Wanted([string]$Name) { return (-not $Only) -or ($Only -contains $Name) }
 
 $results = [System.Collections.Generic.List[object]]::new()
+function Get-RunUrl([int]$Id) {
+    # Built, not read: az's JSON output drops underscore-prefixed keys such as _links (every other declared Build
+    # field is present, as null when unset), and under StrictMode reading the missing property throws.
+    return "$($m.azureDevOps.organizationUrl)/$([uri]::EscapeDataString($m.azureDevOps.project))/_build/results?buildId=$Id"
+}
 function Start-Run([string]$Name) {
     $run = Invoke-AzCli pipelines run --name $Name --branch $Branch
     Write-MeridianOk "queued $Name run $($run.id) ($($run.buildNumber))"
@@ -83,7 +88,7 @@ function Wait-Runs([object[]]$Runs) {
             $b = Invoke-AzCli pipelines runs show --id $id
             if ($b.status -ne 'completed') { continue }
             $minutes = if ($b.startTime -and $b.finishTime) { [math]::Round(([datetime]$b.finishTime - [datetime]$b.startTime).TotalMinutes, 1) } else { '' }
-            $results.Add([pscustomobject]@{ pipeline = $pending[$id]; run = $id; number = $b.buildNumber; result = $b.result; minutes = $minutes; url = $b._links.web.href })
+            $results.Add([pscustomobject]@{ pipeline = $pending[$id]; run = $id; number = $b.buildNumber; result = $b.result; minutes = $minutes; url = (Get-RunUrl $id) })
             $color = if ($b.result -eq 'succeeded') { 'Green' } else { 'Red' }
             Write-Host "    $($b.result.PadRight(18)) $($pending[$id]) run $id ($minutes min)" -ForegroundColor $color
             $pending.Remove($id)
