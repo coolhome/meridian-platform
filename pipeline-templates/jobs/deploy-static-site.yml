@@ -68,14 +68,17 @@ jobs:
           env:
             SWA: $(Meridian.StaticWebApp)
             RG: $(Meridian.ResourceGroup.Apps)
-        - task: AzureStaticWebApp@0
+        # AzureStaticWebApp@0 runs the Oryx StaticSitesClient via `docker run`, which fails on
+        # Container Apps jobs (Learn: "Container apps and jobs don't support running Docker in
+        # containers"). The SWA CLI's `deploy` command never builds (that's the separate `swa
+        # build` command, never invoked here), so pointing it straight at the already-built drop
+        # folder uploads as-is with no rebuild, on either pool.
+        - script: |
+            set -euo pipefail
+            npx --yes @azure/static-web-apps-cli@2.0.10 deploy "$(Pipeline.Workspace)/drop" --deployment-token "$SWA_TOKEN" --env production
           displayName: Upload site
-          inputs:
-            cwd: $(Pipeline.Workspace)/drop
-            app_location: /
-            skip_app_build: true
-            skip_api_build: true
-            azure_static_web_apps_api_token: $(swaToken)
+          env:
+            SWA_TOKEN: $(swaToken)
         - template: ../steps/smoke-test.yml
           parameters:
             url: https://$(bicep_deploy.out_defaultHostname)/
