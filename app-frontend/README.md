@@ -21,6 +21,16 @@ npm run lint
 npm run build      # dist/ (includes public/staticwebapp.config.json)
 ```
 
+`.npmrc` points every install at the Azure Artifacts feed with `always-auth`, so `npm ci` needs
+feed credentials (`npx vsts-npm-auth -config .npmrc`, or a PAT). Without them, install from the
+public registry the way the GitHub PR workflow does:
+
+```bash
+npm ci --no-audit --no-fund --registry=https://registry.npmjs.org/ --replace-registry-host=always
+```
+
+In Azure Pipelines `NpmAuthenticate@0` injects the feed credentials before `npm ci`.
+
 ## Pipeline
 
 `azure-pipelines.yml` extends `service.yml@templates` with `kind: node-spa`. The deploy

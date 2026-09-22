@@ -13,3 +13,7 @@ SRE-owned alerting, availability tests, workbooks and SLOs, deployed per environ
 
 The pipeline extends `infrastructure.yml@templates` at resource-group scope, so the same
 what-if -> approve -> deploy flow applies to alert changes as to infrastructure.
+
+The log alerts evaluate a single 15-minute period (`numberOfEvaluationPeriods: 1`,
+`minFailingPeriodsToAlert: 1`): their queries do not project a timestamp column, and ARM rejects
+a rule that looks back over more than one period without it.

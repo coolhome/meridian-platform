@@ -4,7 +4,14 @@ See ADR 0003 for the decision. This page is the operator view.
 
 ## Stage order in every service pipeline
 
-`Build` -> `Scan` -> `Package` -> `Deploy_dev` -> `Deploy_test` -> `Deploy_prod`
+`Build` and `Scan` in parallel -> `Package` (dotnet kinds only) -> `Deploy_dev` ->
+`Deploy_test` -> `Deploy_prod` -> `Release`
+
+Every stage names its `dependsOn` explicitly: each `Deploy_*` depends on `Build`, `Scan`,
+`Package` where it exists, and the previous environment's deploy, so a failed build or scan
+stops every deployment. Infrastructure pipelines run `Validate`, then `WhatIf_<env>` ->
+`Deploy_<env>` per environment in the order shared -> dev -> test -> prod, each what-if waiting
+for the previous environment's deploy. `pipeline-templates/README.md` has the full graph.
 
 Each `Deploy_*` stage contains exactly one `deployment:` job bound to the environment of the
 same name, so environment checks always run.
@@ -15,7 +22,7 @@ same name, so environment checks always run.
 | --- | --- | --- |
 | Stage shows **skipped** with no failure | Approval timed out | Retry the stage; approvers are re-snapshotted |
 | Stage waits with "Business hours" | Outside 08:00-18:00 Eastern Mon-Fri | Wait, or a Release Manager overrides the check |
-| "This pipeline needs permission to access a resource" | Pipeline not authorized on the environment, service connection or variable group | `tooling/New-AdoPipelines.ps1 -GrantPermissions` |
+| "This pipeline needs permission to access a resource" | Pipeline not authorized on the environment, service connection or variable group | `pwsh tooling/New-AdoPipelines.ps1` (grants permissions unless `-SkipPermissions`) |
 | "Required template" check failed | Entry file does not `extends` a template from `meridian-pipeline-templates` at the allowed path | Fix the entry file |
 | Branch control failed | Source branch is not `main` or `release/*`, or branch is unprotected | Deploy from a protected branch |
 | Exclusive lock waiting | Another run holds `prod` | Wait; locks are `sequential` |

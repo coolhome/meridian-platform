@@ -73,9 +73,8 @@ if (-not $id) { $id = $found | Select-Object -First 1 }
 if (-not $id) { throw "identity '$Identity' not found in $Org" }
 "identity: $Identity  id=$($id.id)  descriptor=$($id.descriptor)"
 
-# The graph subject descriptor (svc.../vssgp...) is what the Terraform provider and the portal hand to this
-# API; the feeds service resolves it through Graph. The IMS descriptor the bootstrap sent is what the API
-# *returns*, and the service dropped it silently, so the graph form goes first.
+# The IMS descriptor with identityId and displayName (the bootstrap's shape) goes first; the graph subject
+# descriptor (svc.../vssgp...) that the Terraform provider and the portal use is kept as the second try.
 $graph = $null
 try { $graph = (Invoke-Cli -Method GET -Area graph -Resource descriptors -Route @("storageKey=$($id.id)")).value }
 catch { "graph descriptor lookup failed, skipping those attempts: $($_.Exception.Message)" }

@@ -15,7 +15,9 @@ each queue plus its poison queue on the environment's platform storage account.
 
 GitVersion (`GitVersion.yml`, `next-version: 1.0.0`). The pipeline packs with the build
 number and pushes to the feed from a `deployment` job bound to the `packages` environment,
-so the required-template and branch-control checks apply to package publishing too.
+so the required-template and branch-control checks apply to package publishing too. The feed is
+project-scoped: `azure-pipelines.yml` passes the bare name (`feed: meridian`) and the template
+pushes to `$(System.TeamProject)/meridian`.
 
 ## Consuming
 

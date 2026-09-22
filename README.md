@@ -71,8 +71,9 @@ flowchart LR
 
 1. Edit `repos.manifest.json` (organization URL, GitHub repo) and
    `governance/environments/environments.json` (subscription / tenant / identity IDs).
-2. Bootstrap Azure DevOps once (project, teams, area paths, feed, wiki, environments and
-   checks, variable groups, workload-identity service connections, project pipeline settings):
+2. Bootstrap Azure DevOps once (project, teams, area paths, feed and the build service's feed
+   role, wiki, environments and checks, variable groups, workload-identity service connections,
+   project pipeline settings):
 
    ```bash
    pwsh ./tooling/Initialize-AzureDevOps.ps1
@@ -154,6 +155,13 @@ points the `meridian` source at it, exactly as `.github/workflows/pr-validation.
 ```bash
 dotnet pack platform-libraries -c Release -p:PackageVersion=1.0.0 -o /tmp/meridian-feed
 dotnet restore approval-service --configfile /tmp/nuget.local.config   # see the workflow for the file
+```
+
+`app-frontend/.npmrc` points npm at the same feed. Without feed credentials, install from the
+public registry as the workflow's node job does:
+
+```bash
+npm ci --no-audit --no-fund --registry=https://registry.npmjs.org/ --replace-registry-host=always
 ```
 
 ## Cost posture

@@ -6,7 +6,7 @@ on first use) and git 2.30+ with `subtree`.
 
 | Script | Purpose |
 | --- | --- |
-| `Initialize-AzureDevOps.ps1` | Project, pipeline settings, groups, teams, area paths, iterations, feed, WIF service connections, variable groups, environments + checks |
+| `Initialize-AzureDevOps.ps1` | Project, pipeline settings, groups, teams, area paths, iterations, feed + build-service feed role, WIF service connections, variable groups (including `UniqueSuffix` in `meridian-shared`), environments + checks; prints the steps it could not perform at the end |
 | `Sync-ToAzureRepos.ps1` | `git subtree split` each folder and push to its Azure Repo (creates repos) |
 | `Sync-FromAzureRepos.ps1` | Back-port an Azure Repos branch into a folder (`subtree pull --squash`) |
 | `New-AdoPipelines.ps1` | Create/update pipelines, grant pipeline permissions on protected resources, build-service tag rights |
@@ -27,9 +27,10 @@ on first use) and git 2.30+ with `subtree`.
 
 One step in the provisioning path is a human's on purpose: **the `shared` environment
 approval.** `Approve-PendingApprovals.ps1` lets an operator clear it without the portal, but the
-gate itself is the point of the platform. It needs `AZDO_PAT` (Build read and execute) outright —
-the `PipelinesApprovals` area is not exposed to `az devops invoke`, so there is no
-credential-manager fallback for approvals.
+gate itself is the point of the platform. It needs `AZDO_PAT` (Build read and execute): without a
+PAT the script tries `az devops invoke` on the `PipelinesApprovals` area, which the extension does
+not expose in this organization, and stops with a message to set `AZDO_PAT`.
+`Start-EnvironmentDeploy.ps1 -ApproveShared` refuses to start without one.
 
 The feed role grant used to be listed here as impossible. It was not: the bootstrap's PATCH body
 was double-wrapped (`ConvertTo-Json -InputObject @(...) -AsArray` produces `[[...]]`) and the
@@ -88,4 +89,5 @@ pwsh tooling/Initialize-AzureDevOps.ps1        # skips service connections until
 pwsh tooling/Publish-Platform.ps1              # mirrors, pipelines, policies, wiki
 pwsh tooling/Initialize-AzureDevOps.ps1        # second pass: required-template checks now that the templates repo exists
 pwsh tooling/New-AdoPipelines.ps1              # second pass after first pipeline run: build-service tag rights
+pwsh tooling/Initialize-AzureDevOps.ps1        # rerun if the bootstrap listed the feed role as a step it could not perform (the build service identity exists after the first run)
 ```
