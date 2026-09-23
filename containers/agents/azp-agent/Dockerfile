@@ -120,18 +120,27 @@ RUN apt-get update \
 # different disk layouts on one machine — except both sides here are Microsoft's own distribution,
 # just via different mechanisms (Docker-image tarball vs. apt).
 #
-# The fix: extract the pinned, sha512-checked runtime tarball straight into the SDK's own
-# /usr/share/dotnet, the same way Microsoft's own SDK Docker images install .NET (see "Install .NET
-# on Linux by using an install script or by extracting binaries" — "different versions of .NET can
-# be extracted to the same folder, which coexist side-by-side"). This never touches /usr/bin/dotnet
-# or /etc/dotnet/install_location, so `dotnet --list-sdks` keeps seeing the 10.0 SDK, and
-# `dotnet --list-runtimes` gains the 8.0 runtime the credential provider needs, both through the
-# one muxer the base image already put on PATH. `-o` on tar matches the official SDK image's own
-# extract step (skip restoring the archived owner/group; everything here ends up root:root, same as
-# the rest of /usr/share/dotnet from the base image).
+# The fix: extract ONLY the .NET 8 shared framework directory from the pinned, sha512-checked
+# tarball into the SDK's own /usr/share/dotnet — not the whole archive. A dotnet-runtime tarball
+# also carries its own ./dotnet (the muxer), ./LICENSE.txt, ./ThirdPartyNotices.txt and
+# ./host/fxr/<fxr version>; extracting the full tarball was tried first and rejected in review
+# (tested with podman against mcr.microsoft.com/dotnet/sdk:10.0-noble): it silently overwrites
+# /usr/share/dotnet/dotnet with the 8.0 build's muxer binary, and only kept working because the
+# resulting host still finds and loads host/fxr/10.0.12 (the higher of the two fxr versions now on
+# disk) — an implicit, untested dependency on host-selection behaviour, not something this fix
+# should rely on. hostfxr resolves a "Microsoft.NETCore.App" 8.x framework reference by scanning
+# shared/Microsoft.NETCore.App/<version> directories under the one dotnet_root regardless of which
+# hostfxr build is loaded, so the 8.0 tarball's own muxer and host/fxr copies buy nothing here.
+# Extracting only shared/Microsoft.NETCore.App/${DOTNET_RUNTIME8_VERSION} leaves /usr/bin/dotnet,
+# /usr/share/dotnet/dotnet, host/fxr/* and /etc/dotnet/install_location exactly as the base image
+# built them: `dotnet --list-sdks` keeps seeing the 10.0 SDK through the base image's own,
+# untouched muxer, and `dotnet --list-runtimes` gains the 8.0 framework the credential provider
+# needs. `-o` on tar matches the official SDK image's own extract step (skip restoring the
+# archived owner/group; everything here ends up root:root, same as the rest of /usr/share/dotnet
+# from the base image).
 RUN curl -fsSL -o /tmp/dotnet-runtime-8.0.tar.gz "https://builds.dotnet.microsoft.com/dotnet/Runtime/${DOTNET_RUNTIME8_VERSION}/dotnet-runtime-${DOTNET_RUNTIME8_VERSION}-linux-x64.tar.gz" \
  && echo "${DOTNET_RUNTIME8_SHA512}  /tmp/dotnet-runtime-8.0.tar.gz" | sha512sum -c - \
- && tar -oxzf /tmp/dotnet-runtime-8.0.tar.gz -C /usr/share/dotnet \
+ && tar -oxzf /tmp/dotnet-runtime-8.0.tar.gz -C /usr/share/dotnet "./shared/Microsoft.NETCore.App/${DOTNET_RUNTIME8_VERSION}" \
  && rm /tmp/dotnet-runtime-8.0.tar.gz
 
 # Azure CLI: Microsoft's own apt-based installer (system-wide, needs root); cleans up its own apt
