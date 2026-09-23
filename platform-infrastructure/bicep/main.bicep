@@ -62,7 +62,7 @@ param containerRegistrySku string = 'Basic'
 param agentPoolEnabled bool = false
 
 @description('Tag of the acrmrdshared.azurecr.io/agents/azp-agent image the agent pool jobs run.')
-param agentImageTag string = '1.0.0'
+param agentImageTag string = '1.0.1'
 
 @description('Object id of a user (not a service principal) to grant Key Vault Secrets Officer on the agent-pool vault, so they can run az keyvault secret set for azdo-agent-pat — an RBAC vault grants Owner no data actions. Empty skips the role assignment.')
 // This is an AAD object id, not a credential; @secure() would be the wrong fix for the linter's
