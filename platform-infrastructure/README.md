@@ -46,7 +46,7 @@ Parameters:
 | Parameter | Default | Meaning |
 | --- | --- | --- |
 | `agentPoolEnabled` | `false` | Deploys the two jobs above. The environment, identity, ACR pull and vault deploy regardless. |
-| `agentImageTag` | `1.0.0` | Tag of `acrmrdshared.azurecr.io/agents/azp-agent` the jobs run (see `containers/agents/azp-agent/`) |
+| `agentImageTag` | `1.0.1` | Tag of `acrmrdshared.azurecr.io/agents/azp-agent` the jobs run (see `containers/agents/azp-agent/`) |
 
 Outputs (all empty string outside `shared`): `agentPoolKeyVaultName`, `agentPoolPatSecretUri`
 (the secret URI to write `azdo-agent-pat` to), `agentPoolEnvironmentName`, `agentJobName`,

@@ -9,9 +9,13 @@ and `shared` today).
 
 Built on `acrmrdshared.azurecr.io/base/build-tools:10.0` (`containers/base-images/build-tools`:
 .NET 10 SDK, Node 24, PowerShell, GitVersion, CycloneDX, non-root `builder` user), plus Azure
-CLI, `jq`, `git`, `unzip`/`zip`, `pipx`, `dotnet-runtime-8.0` (the Azure Artifacts credential
-provider `NuGetAuthenticate@1` installs on first use is itself a .NET 8 tool), and three pinned,
-sha256-checked binaries: hadolint (will replace `docker run hadolint/hadolint` in
+CLI, `jq`, `git`, `unzip`/`zip`, `pipx`, a pinned, sha512-checked .NET 8 runtime tarball extracted
+straight into the SDK's own `/usr/share/dotnet` (the Azure Artifacts credential provider
+`NuGetAuthenticate@1` installs on first use is itself a .NET 8 tool; this is deliberately not the
+`dotnet-runtime-8.0` apt package, which repoints `/usr/bin/dotnet` at a runtime-only tree and
+hides the 10.0 SDK from it — see the comment above the install step in `Dockerfile` for the full
+mechanism, first hit in runs 4020-4024), and three pinned, sha256-checked binaries: hadolint
+(will replace `docker run hadolint/hadolint` in
 `pipeline-templates/pipelines/extends/container-images.yml` once pipelines-dev's templates
 v1.1.0 lands — Container Apps jobs cannot run Docker-in-container, and that template on `main`
 still runs `docker run` today), bicep (a plain binary on `PATH` rather than `az bicep install`,
