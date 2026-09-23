@@ -15,7 +15,7 @@ resources:
   - repository: templates
     type: git
     name: Meridian/meridian-pipeline-templates
-    ref: refs/tags/v1.0.9
+    ref: refs/tags/v1.1.0
   pipelines:
   - pipeline: platformLibraries
     source: platform-libraries-cicd
@@ -44,6 +44,7 @@ variables:
 extends:
   template: pipelines/extends/service.yml@templates
   parameters:
+    agentPool: platform
     serviceName: worker-jobs
     kind: dotnet-worker
     dotnet:

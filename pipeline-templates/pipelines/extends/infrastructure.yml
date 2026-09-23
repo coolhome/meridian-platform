@@ -34,6 +34,12 @@ parameters:
 - name: deploy
   type: boolean
   default: true
+- name: agentPool
+  type: string
+  default: hosted
+  values:
+  - hosted
+  - platform
 
 stages:
 - stage: Validate
@@ -42,8 +48,12 @@ stages:
   - template: ../../variables/common.yml
   jobs:
   - job: Validate
-    pool:
-      vmImage: $(Meridian.VmImage)
+    ${{ if eq(parameters.agentPool, 'platform') }}:
+      pool:
+        name: meridian-agents
+    ${{ if ne(parameters.agentPool, 'platform') }}:
+      pool:
+        vmImage: $(Meridian.VmImage)
     steps:
     - template: ../../steps/checkout.yml
       parameters:
@@ -54,6 +64,7 @@ stages:
   - template: ../../jobs/security-scan.yml
     parameters:
       scanIaC: true
+      agentPool: ${{ parameters.agentPool }}
 
 # Every prerequisite is explicit. A stage without dependsOn inherits whichever stage happens to
 # precede it in the file (service.yml documents the run that proved it). Environments promote in
@@ -92,6 +103,7 @@ stages:
           parametersFile: ${{ replace(parameters.parametersPattern, '{env}', env) }}
           resourceGroup: ${{ replace(parameters.resourceGroupPattern, '{env}', env) }}
           additionalParameters: ${{ parameters.additionalParameters }}
+          agentPool: ${{ parameters.agentPool }}
     - stage: Deploy_${{ env }}
       displayName: Deploy ${{ env }}
       dependsOn:
@@ -114,3 +126,4 @@ stages:
           parametersFile: ${{ replace(parameters.parametersPattern, '{env}', env) }}
           resourceGroup: ${{ replace(parameters.resourceGroupPattern, '{env}', env) }}
           additionalParameters: ${{ parameters.additionalParameters }}
+          agentPool: ${{ parameters.agentPool }}

@@ -7,7 +7,7 @@ resources:
   - repository: templates
     type: git
     name: Meridian/meridian-pipeline-templates
-    ref: refs/tags/v1.0.9
+    ref: refs/tags/v1.1.0
 
 variables:
 - name: Meridian.Component
@@ -16,6 +16,7 @@ variables:
 extends:
   template: pipelines/extends/service.yml@templates
   parameters:
+    agentPool: platform
     serviceName: identity-service
     kind: dotnet-api
     deploy: false

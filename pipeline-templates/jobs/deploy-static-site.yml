@@ -14,12 +14,22 @@ parameters:
 - name: vmImage
   type: string
   default: ubuntu-24.04
+- name: agentPool
+  type: string
+  default: hosted
+  values:
+  - hosted
+  - platform
 
 jobs:
 - deployment: Deploy
   displayName: Deploy ${{ parameters.serviceName }} to ${{ parameters.environment }}
-  pool:
-    vmImage: ${{ parameters.vmImage }}
+  ${{ if eq(parameters.agentPool, 'platform') }}:
+    pool:
+      name: meridian-agents
+  ${{ if ne(parameters.agentPool, 'platform') }}:
+    pool:
+      vmImage: ${{ parameters.vmImage }}
   environment: ${{ parameters.environment }}
   variables:
   - name: Meridian.StaticWebApp
@@ -58,14 +68,24 @@ jobs:
           env:
             SWA: $(Meridian.StaticWebApp)
             RG: $(Meridian.ResourceGroup.Apps)
-        - task: AzureStaticWebApp@0
+        # AzureStaticWebApp@0 runs the Oryx StaticSitesClient via `docker run`, which fails on
+        # Container Apps jobs (Learn: "Container apps and jobs don't support running Docker in
+        # containers"). The SWA CLI's `deploy` command never builds (that's the separate `swa
+        # build` command, never invoked here), so pointing it straight at the already-built drop
+        # folder uploads as-is with no rebuild, on either pool.
+        - script: |
+            set -euo pipefail
+            npx --yes @azure/static-web-apps-cli@2.0.10 deploy "$(Pipeline.Workspace)/drop" --env production
           displayName: Upload site
-          inputs:
-            cwd: $(Pipeline.Workspace)/drop
-            app_location: /
-            skip_app_build: true
-            skip_api_build: true
-            azure_static_web_apps_api_token: $(swaToken)
+          # Must not run from the consumer checkout: app-frontend/.npmrc points npm at the
+          # project-scoped feed with always-auth=true, and NpmAuthenticate@0 only ran in the Build
+          # job, so `npx` here 401s resolving @azure/static-web-apps-cli before the CLI even starts.
+          # $(Pipeline.Workspace) has no package.json/.npmrc above it, so no registry override applies.
+          workingDirectory: $(Pipeline.Workspace)
+          env:
+            # The CLI reads this natively; never pass the token as a --deployment-token argument
+            # (some OSes log process arguments).
+            SWA_CLI_DEPLOYMENT_TOKEN: $(swaToken)
         - template: ../steps/smoke-test.yml
           parameters:
             url: https://$(bicep_deploy.out_defaultHostname)/

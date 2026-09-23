@@ -23,12 +23,22 @@ parameters:
 - name: vmImage
   type: string
   default: ubuntu-24.04
+- name: agentPool
+  type: string
+  default: hosted
+  values:
+  - hosted
+  - platform
 
 jobs:
 - deployment: Deploy
   displayName: Deploy ${{ parameters.serviceName }} to ${{ parameters.environment }}
-  pool:
-    vmImage: ${{ parameters.vmImage }}
+  ${{ if eq(parameters.agentPool, 'platform') }}:
+    pool:
+      name: meridian-agents
+  ${{ if ne(parameters.agentPool, 'platform') }}:
+    pool:
+      vmImage: ${{ parameters.vmImage }}
   environment: ${{ parameters.environment }}
   variables:
   - name: Meridian.ContainerApp

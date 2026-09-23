@@ -4,7 +4,9 @@ Mapped to the azp-reference hardening checklist tiers.
 
 ## Tier 1
 
-* Microsoft-hosted agents only (`ubuntu-24.04`, pinned, not `-latest`).
+* Microsoft-hosted `ubuntu-24.04` (pinned, not `-latest`) or the platform's own `meridian-agents`
+  self-hosted pool (ADR 0008); the pool's Agent Pools PAT in the `shared` Key Vault is the one
+  recorded, scoped exception to workload identity (ADR 0006).
 * Workload identity federation for every Azure service connection (ADR 0006).
 * Job authorization scope limited to the project; referenced-repo scoped tokens on
   (`governance/policies/project-pipeline-settings.json`).

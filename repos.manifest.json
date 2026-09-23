@@ -20,8 +20,8 @@
     "agentPool": "Azure Pipelines",
     "selfHostedPool": "meridian-agents",
     "templatesRepository": "meridian-pipeline-templates",
-    "templatesRef": "refs/tags/v1.0.9",
-    "allowedTemplateRefs": ["refs/tags/v1.0.8", "refs/tags/v1.0.9"],
+    "templatesRef": "refs/tags/v1.1.0",
+    "allowedTemplateRefs": ["refs/tags/v1.0.9", "refs/tags/v1.1.0"],
     "containerRegistry": "acrmrdshared",
     "wiki": {
       "name": "Meridian",

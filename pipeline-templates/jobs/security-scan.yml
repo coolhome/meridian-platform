@@ -2,12 +2,22 @@ parameters:
 - name: scanIaC
   type: boolean
   default: true
+- name: agentPool
+  type: string
+  default: hosted
+  values:
+  - hosted
+  - platform
 
 jobs:
 - job: Scan
   displayName: Secrets, dependencies, IaC
-  pool:
-    vmImage: $(Meridian.VmImage)
+  ${{ if eq(parameters.agentPool, 'platform') }}:
+    pool:
+      name: meridian-agents
+  ${{ if ne(parameters.agentPool, 'platform') }}:
+    pool:
+      vmImage: $(Meridian.VmImage)
   steps:
   - template: ../steps/checkout.yml
   - template: ../steps/security-scan.yml

@@ -43,6 +43,12 @@ parameters:
 - name: deploy
   type: boolean
   default: true
+- name: agentPool
+  type: string
+  default: hosted
+  values:
+  - hosted
+  - platform
 
 stages:
 - stage: Build
@@ -56,11 +62,13 @@ stages:
         dotnet: ${{ parameters.dotnet }}
         preBuildSteps: ${{ parameters.preBuildSteps }}
         publishArtifact: true
+        agentPool: ${{ parameters.agentPool }}
   - ${{ if eq(parameters.kind, 'node-spa') }}:
     - template: ../../jobs/build-node.yml
       parameters:
         node: ${{ parameters.node }}
         preBuildSteps: ${{ parameters.preBuildSteps }}
+        agentPool: ${{ parameters.agentPool }}
 
 - stage: Scan
   displayName: Security scan
@@ -69,6 +77,8 @@ stages:
   - template: ../../variables/common.yml
   jobs:
   - template: ../../jobs/security-scan.yml
+    parameters:
+      agentPool: ${{ parameters.agentPool }}
 
 - ${{ if and(eq(parameters.deploy, true), startsWith(parameters.kind, 'dotnet-')) }}:
   - stage: Package
@@ -84,6 +94,7 @@ stages:
       parameters:
         serviceName: ${{ parameters.serviceName }}
         container: ${{ parameters.container }}
+        agentPool: ${{ parameters.agentPool }}
 
 - ${{ if eq(parameters.deploy, true) }}:
   - ${{ each env in parameters.environments }}:
@@ -122,12 +133,14 @@ stages:
             infra: ${{ parameters.infra }}
             smokePath: ${{ parameters.smokePath }}
             prodStrategy: ${{ parameters.prodStrategy }}
+            agentPool: ${{ parameters.agentPool }}
       - ${{ if eq(parameters.kind, 'node-spa') }}:
         - template: ../../jobs/deploy-static-site.yml
           parameters:
             environment: ${{ env }}
             serviceName: ${{ parameters.serviceName }}
             infra: ${{ parameters.infra }}
+            agentPool: ${{ parameters.agentPool }}
 
 - ${{ if and(eq(parameters.deploy, true), containsValue(parameters.environments, 'prod')) }}:
   - stage: Release
@@ -139,7 +152,11 @@ stages:
     - template: ../../variables/common.yml
     jobs:
     - job: Tag
-      pool:
-        vmImage: $(Meridian.VmImage)
+      ${{ if eq(parameters.agentPool, 'platform') }}:
+        pool:
+          name: meridian-agents
+      ${{ if ne(parameters.agentPool, 'platform') }}:
+        pool:
+          vmImage: $(Meridian.VmImage)
       steps:
       - template: ../../steps/tag-release.yml
