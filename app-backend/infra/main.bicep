@@ -41,13 +41,12 @@ resource keyVault 'Microsoft.KeyVault/vaults@2024-11-01' existing = {
   scope: resourceGroup(platformResourceGroup)
 }
 
-resource identityService 'Microsoft.App/containerApps@2025-01-01' existing = {
-  name: 'ca-${prefix}-${environment}-identity-service'
-}
-
-resource approvalService 'Microsoft.App/containerApps@2025-01-01' existing = {
-  name: 'ca-${prefix}-${environment}-approval-service'
-}
+// Sibling FQDNs are derived by convention (appName.defaultDomain) instead of looked up as
+// `existing` Microsoft.App/containerApps resources: after a teardown the siblings do not exist
+// yet, and a redeploy of app-backend must not depend on identity-service/approval-service
+// having deployed first.
+var identityServiceFqdn = 'ca-${prefix}-${environment}-identity-service.${containerAppsEnvironment.properties.defaultDomain}'
+var approvalServiceFqdn = 'ca-${prefix}-${environment}-approval-service.${containerAppsEnvironment.properties.defaultDomain}'
 
 var traffic = empty(previousRevisionName)
   ? [
@@ -133,8 +132,8 @@ resource app 'Microsoft.App/containerApps@2025-01-01' = {
               { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', secretRef: 'appinsights-connection-string' }
               { name: 'AZURE_CLIENT_ID', value: identity.properties.clientId }
               { name: 'Meridian__Environment', value: environment }
-              { name: 'Downstream__Identity__BaseAddress', value: 'https://${identityService.properties.configuration.ingress.fqdn}/' }
-              { name: 'Downstream__Approvals__BaseAddress', value: 'https://${approvalService.properties.configuration.ingress.fqdn}/' }
+              { name: 'Downstream__Identity__BaseAddress', value: 'https://${identityServiceFqdn}/' }
+              { name: 'Downstream__Approvals__BaseAddress', value: 'https://${approvalServiceFqdn}/' }
             ],
             corsEnv
           )
