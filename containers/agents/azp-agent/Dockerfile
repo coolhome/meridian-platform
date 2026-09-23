@@ -37,8 +37,10 @@
 #   - ca-certificates, libicu74: TLS for every curl/az/dotnet/npm call above and the .NET agent
 #     runtime itself; libicu74 is Ubuntu 24.04's package name (the agent image is noble, same as
 #     the build-tools base).
-#   - dotnet-runtime-8.0: NuGetAuthenticate@1's Azure Artifacts credential provider is a .NET 8
-#     tool it installs on first use; see the comment by the apt-get layer below.
+#   - .NET 8 runtime (installed as a pinned, sha512-checked tarball into the SDK's own
+#     /usr/share/dotnet, not via apt): NuGetAuthenticate@1's Azure Artifacts credential provider
+#     is a .NET 8 tool it installs on first use; see the comment by that install step below for
+#     why this is not the dotnet-runtime-8.0 apt package.
 #   - pipx: pipeline-templates-ci's own Lint job (`pipx install yamllint==1.35.1`) — this pool's
 #     first consumer per the capacity assessment, so it needs to work from day one even though no
 #     step under pipeline-templates/steps/ or jobs/ calls it.
@@ -65,6 +67,11 @@ ARG AZP_AGENT_VERSION=4.275.0
 ARG AZP_AGENT_SHA256=416eb9340385d599e3159b86d08c03754af24d1cb2b6624425142a47ca65f346
 ARG BICEP_VERSION=0.47.16
 ARG BICEP_SHA256=64c345a58e0c3e48b1bc98a4e62d6b3adb1d238281297de3400aeafb2697aa5a
+# Microsoft's own release manifest (dotnet/core release-notes/8.0/releases.json) publishes this
+# artifact's checksum as sha512, not sha256, so this one pin is verified with sha512sum -c instead
+# of matching the sha256 style of the other pins in this file; see the comment by the install step.
+ARG DOTNET_RUNTIME8_VERSION=8.0.31
+ARG DOTNET_RUNTIME8_SHA512=f336bdec58d54bf50d74a1b38efa82f7290d976bd2ed98b845ebcbac42cf0d8cef504684fc088d4b05f98737b996bf3302e52bd9c23005deae7c60780b2652fb
 
 LABEL org.opencontainers.image.title="meridian/agents/azp-agent" \
       org.opencontainers.image.description="Self-hosted Azure Pipelines agent, pool meridian-agents" \
@@ -85,14 +92,47 @@ USER root
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # hadolint ignore=DL3008
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates curl dotnet-runtime-8.0 git gnupg jq libicu74 pipx unzip zip \
+ && apt-get install -y --no-install-recommends ca-certificates curl git gnupg jq libicu74 pipx unzip zip \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
-# dotnet-runtime-8.0 comes from the Microsoft package repo the base image already registered
-# (base-images/build-tools/Dockerfile installs packages-microsoft-prod.deb to get PowerShell from
-# it). It is not for building or running anything here: NuGetAuthenticate@1 installs the Azure
-# Artifacts credential provider on first use, and that provider is itself a .NET 8 tool — without
-# a matching runtime already on the image, every job that restores from the feed would eat the
-# provider's own download-and-first-run cost.
+
+# .NET 8 runtime for NuGetAuthenticate@1's Azure Artifacts credential provider, which is itself a
+# .NET 8 tool it installs on first use — without a matching runtime already on the image, every
+# job that restores from the feed would eat the provider's own download-and-first-run cost.
+#
+# This is deliberately NOT `apt-get install dotnet-runtime-8.0` (what runs 4020-4024 on this pool
+# shipped with, and the cause of "No .NET SDKs were found" from every dotnet invocation, including
+# steps/gitversion.yml's `dotnet tool install --global GitVersion.Tool`). The base image
+# (mcr.microsoft.com/dotnet/sdk:10.0-noble, via base-images/build-tools/Dockerfile) installs the
+# 10.0 SDK by extracting Microsoft's own tarball into /usr/share/dotnet and symlinking
+# /usr/bin/dotnet to /usr/share/dotnet/dotnet — no /etc/dotnet/install_location file, because (per
+# Microsoft's own distribution-packaging doc) that file "is not necessary... when the root is
+# /usr/share/dotnet". The dotnet-runtime-8.0 *apt* package pulls in dotnet-hostfxr-8.0, which pulls
+# in dotnet-host as a dependency; per the same doc, the dotnet-host package owns /usr/bin/dotnet,
+# the man page, AND /etc/dotnet/install_location. Debian/Ubuntu's Microsoft-feed packages lay their
+# files under /usr/lib/dotnet, so apt's postinst overwrites /usr/bin/dotnet to point there and
+# writes /etc/dotnet/install_location=/usr/lib/dotnet. Every subsequent `dotnet` invocation resolves
+# through that install_location, which has a .NET 8 runtime but no SDK at all (the 10.0 SDK is
+# still sitting, untouched, under /usr/share/dotnet/sdk) — hence zero SDKs found, on the very first
+# dotnet command in the job, in ~2-3s (the apt package's postinst runs at image build time, so every
+# container from this image is affected identically; this is not a race or a per-run flake). This
+# is the same class of problem Microsoft documents at
+# https://learn.microsoft.com/dotnet/core/install/linux-package-mixup — two .NET installs with
+# different disk layouts on one machine — except both sides here are Microsoft's own distribution,
+# just via different mechanisms (Docker-image tarball vs. apt).
+#
+# The fix: extract the pinned, sha512-checked runtime tarball straight into the SDK's own
+# /usr/share/dotnet, the same way Microsoft's own SDK Docker images install .NET (see "Install .NET
+# on Linux by using an install script or by extracting binaries" — "different versions of .NET can
+# be extracted to the same folder, which coexist side-by-side"). This never touches /usr/bin/dotnet
+# or /etc/dotnet/install_location, so `dotnet --list-sdks` keeps seeing the 10.0 SDK, and
+# `dotnet --list-runtimes` gains the 8.0 runtime the credential provider needs, both through the
+# one muxer the base image already put on PATH. `-o` on tar matches the official SDK image's own
+# extract step (skip restoring the archived owner/group; everything here ends up root:root, same as
+# the rest of /usr/share/dotnet from the base image).
+RUN curl -fsSL -o /tmp/dotnet-runtime-8.0.tar.gz "https://builds.dotnet.microsoft.com/dotnet/Runtime/${DOTNET_RUNTIME8_VERSION}/dotnet-runtime-${DOTNET_RUNTIME8_VERSION}-linux-x64.tar.gz" \
+ && echo "${DOTNET_RUNTIME8_SHA512}  /tmp/dotnet-runtime-8.0.tar.gz" | sha512sum -c - \
+ && tar -oxzf /tmp/dotnet-runtime-8.0.tar.gz -C /usr/share/dotnet \
+ && rm /tmp/dotnet-runtime-8.0.tar.gz
 
 # Azure CLI: Microsoft's own apt-based installer (system-wide, needs root); cleans up its own apt
 # lists in this layer too, since it runs `apt-get install` internally and would otherwise leave a
